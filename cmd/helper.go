@@ -5,6 +5,7 @@ import (
 
 	"redis-cli-tool/pkg/client"
 	"redis-cli-tool/pkg/config"
+	"redis-cli-tool/pkg/format"
 )
 
 // getActiveClient resolves the target context and constructs a connected *client.Client
@@ -28,19 +29,7 @@ func getActiveClient() (*client.Client, config.Context, error) {
 	return cl, targetCtx, nil
 }
 
-// formatBytes formats raw byte count into human readable B, KB, MB, GB string
+// formatBytes delegates to the canonical format.FormatBytes implementation
 func formatBytes(bytes int64) string {
-	if bytes < 0 {
-		return "-"
-	}
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+	return format.FormatBytes(bytes)
 }

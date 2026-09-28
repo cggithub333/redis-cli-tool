@@ -19,6 +19,9 @@ type Config struct {
 
 // GetContext retrieves a context by name
 func (cfg *Config) GetContext(name string) (*Context, bool) {
+	if cfg == nil {
+		return nil, false
+	}
 	for i := range cfg.Contexts {
 		if cfg.Contexts[i].Name == name {
 			return &cfg.Contexts[i], true
@@ -29,6 +32,9 @@ func (cfg *Config) GetContext(name string) (*Context, bool) {
 
 // SetContext adds or updates a context by name
 func (cfg *Config) SetContext(ctx Context) {
+	if cfg == nil {
+		return
+	}
 	for i := range cfg.Contexts {
 		if cfg.Contexts[i].Name == ctx.Name {
 			cfg.Contexts[i] = ctx
@@ -40,6 +46,9 @@ func (cfg *Config) SetContext(ctx Context) {
 
 // DeleteContext removes a context by name, clearing CurrentContext if it matches
 func (cfg *Config) DeleteContext(name string) bool {
+	if cfg == nil {
+		return false
+	}
 	for i := range cfg.Contexts {
 		if cfg.Contexts[i].Name == name {
 			cfg.Contexts = append(cfg.Contexts[:i], cfg.Contexts[i+1:]...)

@@ -3,12 +3,15 @@ package cmd
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 
 	"redis-cli-tool/pkg/format"
+	"redis-cli-tool/pkg/safety"
 )
 
 var (
@@ -48,15 +51,45 @@ func runGet(cmd *cobra.Command, args []string) error {
 	}
 	defer cl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
-	raw, err := cl.Get(ctx, key).Bytes()
-	if err != nil {
-		return fmt.Errorf("failed to get key %q: %w", key, err)
-	}
+	var decoded *format.DecodedResult
 
-	decoded := format.DecodeStringPayload(raw, getFullFlag)
+	if !getFullFlag {
+		strLen, err := cl.StrLen(ctx, key).Result()
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				return safety.NewSafetyError(safety.ExitKeyNotFound, fmt.Sprintf("key %q not found", key))
+			}
+			return fmt.Errorf("failed to get key %q length: %w", key, err)
+		}
+		if strLen > format.MaxPreviewBytes {
+			raw, err := cl.GetRange(ctx, key, 0, format.MaxPreviewBytes-1).Bytes()
+			if err != nil {
+				return fmt.Errorf("failed to get key %q preview: %w", key, err)
+			}
+			decoded = format.DecodeStringPayloadWithTotal(raw, strLen, false)
+		} else {
+			raw, err := cl.Get(ctx, key).Bytes()
+			if err != nil {
+				if errors.Is(err, redis.Nil) {
+					return safety.NewSafetyError(safety.ExitKeyNotFound, fmt.Sprintf("key %q not found", key))
+				}
+				return fmt.Errorf("failed to get key %q: %w", key, err)
+			}
+			decoded = format.DecodeStringPayload(raw, true)
+		}
+	} else {
+		raw, err := cl.Get(ctx, key).Bytes()
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				return safety.NewSafetyError(safety.ExitKeyNotFound, fmt.Sprintf("key %q not found", key))
+			}
+			return fmt.Errorf("failed to get key %q: %w", key, err)
+		}
+		decoded = format.DecodeStringPayload(raw, true)
+	}
 
 	if jsonFlag || formatFlag == "json" {
 		data, _ := json.MarshalIndent(map[string]interface{}{
@@ -70,7 +103,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), decoded.Formatted)
+	fmt.Fprintln(cmd.OutOrStdout(), format.DisarmANSI(decoded.Formatted))
 	return nil
 }
 
@@ -84,11 +117,21 @@ func runSet(cmd *cobra.Command, args []string) error {
 	}
 	defer cl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
 	if err := cl.Set(ctx, key, value, setTTLFlag).Err(); err != nil {
 		return fmt.Errorf("failed to set key %q: %w", key, err)
+	}
+
+	if jsonFlag || formatFlag == "json" {
+		data, _ := json.MarshalIndent(map[string]interface{}{
+			"success": true,
+			"key":     key,
+			"status":  "OK",
+		}, "", "  ")
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		return nil
 	}
 
 	fmt.Fprintln(cmd.OutOrStdout(), "OK")

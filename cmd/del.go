@@ -11,6 +11,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
+	"redis-cli-tool/pkg/format"
 	"redis-cli-tool/pkg/safety"
 )
 
@@ -41,10 +42,12 @@ func runDel(cmd *cobra.Command, args []string) error {
 	}
 	defer cl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
-	isTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	isStdinTTY := isatty.IsTerminal(os.Stdin.Fd()) || isatty.IsCygwinTerminal(os.Stdin.Fd())
+	isStdoutTTY := isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())
+	isTTY := isStdinTTY && isStdoutTTY
 
 	// Check if any argument is a pattern
 	hasPattern := false
@@ -66,6 +69,7 @@ func runDel(cmd *cobra.Command, args []string) error {
 	var totalMatched int64
 	var totalUnlinked int64
 	var estimatedMemory int64
+	var explicitKeys []string
 
 	for _, target := range args {
 		if isPattern(target) {
@@ -81,8 +85,6 @@ func runDel(cmd *cobra.Command, args []string) error {
 				if len(keys) > 0 {
 					if dryRunFlag {
 						pipe := cl.Pipeline()
-						memCmds := make([]*struct{ mem int64 }, len(keys))
-						_ = memCmds
 						for _, k := range keys {
 							pipe.MemoryUsage(ctx, k)
 						}
@@ -107,15 +109,34 @@ func runDel(cmd *cobra.Command, args []string) error {
 				}
 			}
 		} else {
-			// Single explicit key
-			totalMatched++
+			explicitKeys = append(explicitKeys, target)
+		}
+	}
+
+	if len(explicitKeys) > 0 {
+		totalMatched += int64(len(explicitKeys))
+		for i := 0; i < len(explicitKeys); i += batchSize {
+			end := i + batchSize
+			if end > len(explicitKeys) {
+				end = len(explicitKeys)
+			}
+			batch := explicitKeys[i:end]
+
 			if dryRunFlag {
-				mem, _ := cl.MemoryUsage(ctx, target).Result()
-				estimatedMemory += mem
+				pipe := cl.Pipeline()
+				for _, k := range batch {
+					pipe.MemoryUsage(ctx, k)
+				}
+				cmders, _ := pipe.Exec(ctx)
+				for _, cmder := range cmders {
+					if intCmd, ok := cmder.(interface{ Val() int64 }); ok {
+						estimatedMemory += intCmd.Val()
+					}
+				}
 			} else {
-				unlinked, err := cl.Unlink(ctx, target).Result()
+				unlinked, err := cl.Unlink(ctx, batch...).Result()
 				if err != nil {
-					return fmt.Errorf("failed to unlink key %q: %w", target, err)
+					return fmt.Errorf("failed to unlink explicit keys batch: %w", err)
 				}
 				totalUnlinked += unlinked
 			}
@@ -132,7 +153,7 @@ func runDel(cmd *cobra.Command, args []string) error {
 			fmt.Fprintln(cmd.OutOrStdout(), string(data))
 			return nil
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "[DRY-RUN] Matched %d key(s) (~%s memory). 0 keys deleted.\n", totalMatched, formatBytes(estimatedMemory))
+		fmt.Fprintf(cmd.OutOrStdout(), "[DRY-RUN] Matched %d key(s) (~%s memory). 0 keys deleted.\n", totalMatched, format.FormatBytes(estimatedMemory))
 		return nil
 	}
 

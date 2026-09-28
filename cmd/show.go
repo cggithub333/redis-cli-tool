@@ -57,7 +57,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 	defer cl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
 	cursor := showCursorFlag

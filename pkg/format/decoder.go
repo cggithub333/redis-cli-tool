@@ -44,11 +44,74 @@ type DecodedResult struct {
 }
 
 var (
-	JSONKeyStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("39")) // Cyan
-	JSONStringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42")) // Green
+	JSONKeyStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))  // Cyan
+	JSONStringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))  // Green
 	JSONNumberStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("214")) // Yellow
 	JSONBoolStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Pink/Magenta
 )
+
+// truncateRunes safely slices a string to maxRunes respecting UTF-8 boundaries
+func truncateRunes(s string, maxRunes int) string {
+	runes := []rune(s)
+	if len(runes) > maxRunes {
+		return string(runes[:maxRunes-3]) + "..."
+	}
+	return s
+}
+
+// DisarmANSI neutralizes ANSI escape characters to prevent terminal injection
+func DisarmANSI(s string) string {
+	return strings.ReplaceAll(s, "\x1b", "^[")
+}
+
+// ColorizeJSON highlights JSON syntax using lipgloss styles
+func ColorizeJSON(s string) string {
+	lines := strings.Split(s, "\n")
+	var result strings.Builder
+	for lineIdx, line := range lines {
+		trimmed := strings.TrimLeft(line, " ")
+		indent := line[:len(line)-len(trimmed)]
+		if strings.Contains(trimmed, `": `) {
+			parts := strings.SplitN(trimmed, `": `, 2)
+			keyPart := parts[0] + `"`
+			valPart := parts[1]
+			coloredKey := JSONKeyStyle.Render(keyPart)
+
+			var coloredVal string
+			if strings.HasPrefix(valPart, `"`) {
+				comma := ""
+				if strings.HasSuffix(valPart, ",") {
+					comma = ","
+					valPart = valPart[:len(valPart)-1]
+				}
+				coloredVal = JSONStringStyle.Render(valPart) + comma
+			} else if valPart == "true" || valPart == "false" || valPart == "true," || valPart == "false," || valPart == "null" || valPart == "null," {
+				comma := ""
+				if strings.HasSuffix(valPart, ",") {
+					comma = ","
+					valPart = valPart[:len(valPart)-1]
+				}
+				coloredVal = JSONBoolStyle.Render(valPart) + comma
+			} else if len(valPart) > 0 && (valPart[0] >= '0' && valPart[0] <= '9' || valPart[0] == '-') {
+				comma := ""
+				if strings.HasSuffix(valPart, ",") {
+					comma = ","
+					valPart = valPart[:len(valPart)-1]
+				}
+				coloredVal = JSONNumberStyle.Render(valPart) + comma
+			} else {
+				coloredVal = valPart
+			}
+			result.WriteString(indent + coloredKey + ": " + coloredVal)
+		} else {
+			result.WriteString(line)
+		}
+		if lineIdx < len(lines)-1 {
+			result.WriteString("\n")
+		}
+	}
+	return result.String()
+}
 
 // IsBinaryData detects non-printable or null byte content
 func IsBinaryData(data []byte) bool {
@@ -63,12 +126,17 @@ func IsBinaryData(data []byte) bool {
 	}
 
 	nonPrintable := 0
+	runeCount := 0
 	for _, r := range string(data) {
+		runeCount++
 		if !unicode.IsPrint(r) && !unicode.IsSpace(r) {
 			nonPrintable++
 		}
 	}
-	return float64(nonPrintable)/float64(len(data)) > 0.05
+	if runeCount == 0 {
+		return false
+	}
+	return float64(nonPrintable)/float64(runeCount) > 0.05
 }
 
 // FormatPrettyJSON formats JSON bytes with 2-space indentation
@@ -80,22 +148,34 @@ func FormatPrettyJSON(data []byte) (string, error) {
 	return buf.String(), nil
 }
 
-// DecodeStringPayload decodes raw bytes into a DecodedResult (checking JSON, string, or binary)
+// DecodeStringPayload decodes raw bytes into a DecodedResult
 func DecodeStringPayload(raw []byte, full bool) *DecodedResult {
+	return DecodeStringPayloadWithTotal(raw, int64(len(raw)), full)
+}
+
+// DecodeStringPayloadWithTotal decodes bytes with true known total length
+func DecodeStringPayloadWithTotal(raw []byte, totalBytes int64, full bool) *DecodedResult {
 	res := &DecodedResult{
-		RawBytes: int64(len(raw)),
+		RawBytes: totalBytes,
 	}
 
 	displayBytes := raw
-	if len(raw) > MaxPreviewBytes && !full {
+	if (totalBytes > MaxPreviewBytes || len(raw) > MaxPreviewBytes) && !full {
 		res.Truncated = true
-		displayBytes = raw[:MaxPreviewBytes]
+		cut := len(raw)
+		if cut > MaxPreviewBytes {
+			cut = MaxPreviewBytes
+		}
+		for cut > 0 && !utf8.RuneStart(raw[cut]) {
+			cut--
+		}
+		displayBytes = raw[:cut]
 	}
 
 	if json.Valid(displayBytes) {
 		res.ValueType = TypeJSON
 		if pretty, err := FormatPrettyJSON(displayBytes); err == nil {
-			res.Formatted = pretty
+			res.Formatted = ColorizeJSON(pretty)
 		} else {
 			res.Formatted = string(displayBytes)
 		}
@@ -104,7 +184,7 @@ func DecodeStringPayload(raw []byte, full bool) *DecodedResult {
 		res.Formatted = hex.Dump(displayBytes)
 	} else {
 		res.ValueType = TypeString
-		res.Formatted = string(displayBytes)
+		res.Formatted = DisarmANSI(string(displayBytes))
 	}
 
 	if res.Truncated {
@@ -123,6 +203,16 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 	lowerType := strings.ToLower(keyType)
 	switch lowerType {
 	case "string":
+		if !full {
+			strLen, err := cl.StrLen(ctx, key).Result()
+			if err == nil && strLen > MaxPreviewBytes {
+				raw, err := cl.GetRange(ctx, key, 0, MaxPreviewBytes-1).Bytes()
+				if err != nil {
+					return nil, err
+				}
+				return DecodeStringPayloadWithTotal(raw, strLen, false), nil
+			}
+		}
 		raw, err := cl.Get(ctx, key).Bytes()
 		if err != nil {
 			return nil, err
@@ -131,24 +221,30 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 
 	case "hash":
 		totalCount, _ := cl.HLen(ctx, key).Result()
-		fields, _, err := cl.HScan(ctx, key, 0, "*", MaxCollectionItems).Result()
-		if err != nil {
-			return nil, err
-		}
-
-		// HScan returns pairs: field, value, field, value...
+		var cursor uint64
 		hashMap := make(map[string]string)
-		for i := 0; i < len(fields)-1; i += 2 {
-			hashMap[fields[i]] = fields[i+1]
+
+		for {
+			fields, nextCursor, err := cl.HScan(ctx, key, cursor, "*", MaxCollectionItems).Result()
+			if err != nil {
+				return nil, err
+			}
+			for i := 0; i < len(fields)-1; i += 2 {
+				hashMap[fields[i]] = fields[i+1]
+				if len(hashMap) >= MaxCollectionItems {
+					break
+				}
+			}
+			cursor = nextCursor
+			if cursor == 0 || len(hashMap) >= MaxCollectionItems {
+				break
+			}
 		}
 
 		headers := []string{"FIELD", "VALUE"}
 		rows := make([][]string, 0, len(hashMap))
 		for k, v := range hashMap {
-			if len(v) > 80 {
-				v = v[:77] + "..."
-			}
-			rows = append(rows, []string{k, v})
+			rows = append(rows, []string{k, truncateRunes(v, 80)})
 		}
 
 		formatted := RenderTable(headers, rows)
@@ -173,10 +269,7 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 		headers := []string{"INDEX", "VALUE"}
 		rows := make([][]string, len(items))
 		for i, item := range items {
-			if len(item) > 80 {
-				item = item[:77] + "..."
-			}
-			rows[i] = []string{fmt.Sprintf("[%d]", i), item}
+			rows[i] = []string{fmt.Sprintf("[%d]", i), truncateRunes(item, 80)}
 		}
 
 		formatted := RenderTable(headers, rows)
@@ -193,18 +286,29 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 
 	case "set":
 		totalCount, _ := cl.SCard(ctx, key).Result()
-		members, _, err := cl.SScan(ctx, key, 0, "*", MaxCollectionItems).Result()
-		if err != nil {
-			return nil, err
+		var cursor uint64
+		var members []string
+
+		for {
+			batch, nextCursor, err := cl.SScan(ctx, key, cursor, "*", MaxCollectionItems).Result()
+			if err != nil {
+				return nil, err
+			}
+			members = append(members, batch...)
+			cursor = nextCursor
+			if cursor == 0 || len(members) >= MaxCollectionItems {
+				break
+			}
+		}
+
+		if len(members) > MaxCollectionItems {
+			members = members[:MaxCollectionItems]
 		}
 
 		headers := []string{"MEMBER"}
 		rows := make([][]string, len(members))
 		for i, m := range members {
-			if len(m) > 80 {
-				m = m[:77] + "..."
-			}
-			rows[i] = []string{m}
+			rows[i] = []string{truncateRunes(m, 80)}
 		}
 
 		formatted := RenderTable(headers, rows)
@@ -230,10 +334,7 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 		rows := make([][]string, len(zItems))
 		for i, z := range zItems {
 			memberStr := fmt.Sprintf("%v", z.Member)
-			if len(memberStr) > 80 {
-				memberStr = memberStr[:77] + "..."
-			}
-			rows[i] = []string{fmt.Sprintf("%.2f", z.Score), memberStr}
+			rows[i] = []string{fmt.Sprintf("%.2f", z.Score), truncateRunes(memberStr, 80)}
 		}
 
 		formatted := RenderTable(headers, rows)
@@ -248,12 +349,39 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 			Data:      zItems,
 		}, nil
 
-	default:
-		// Fallback to GET
-		raw, err := cl.Get(ctx, key).Bytes()
+	case "stream":
+		totalCount, _ := cl.XLen(ctx, key).Result()
+		entries, err := cl.XRevRangeN(ctx, key, "+", "-", MaxCollectionItems).Result()
 		if err != nil {
 			return nil, err
 		}
-		return DecodeStringPayload(raw, full), nil
+
+		headers := []string{"ID", "FIELDS"}
+		rows := make([][]string, len(entries))
+		for i, entry := range entries {
+			var parts []string
+			for fk, fv := range entry.Values {
+				parts = append(parts, fmt.Sprintf("%s: %v", fk, fv))
+			}
+			rows[i] = []string{entry.ID, truncateRunes(strings.Join(parts, ", "), 80)}
+		}
+
+		formatted := RenderTable(headers, rows)
+		if totalCount > int64(len(entries)) {
+			formatted += fmt.Sprintf("\n(Showing %d of %d total stream entries)", len(entries), totalCount)
+		}
+
+		return &DecodedResult{
+			ValueType: TypeStream,
+			ItemCount: totalCount,
+			Formatted: formatted,
+			Data:      entries,
+		}, nil
+
+	default:
+		return &DecodedResult{
+			ValueType: DecodedValueType(strings.ToUpper(keyType)),
+			Formatted: fmt.Sprintf("[Key type %q does not support value preview]", keyType),
+		}, nil
 	}
 }

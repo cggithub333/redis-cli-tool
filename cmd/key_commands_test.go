@@ -97,4 +97,24 @@ func TestKeyCommands(t *testing.T) {
 	if !strings.Contains(inspectOut, "test:key:json") || !strings.Contains(inspectOut, "STRING") {
 		t.Fatalf("expected inspect card with key and type, got: %s", inspectOut)
 	}
+
+	// 9. Test redis get on non-existent key returns ExitKeyNotFound
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"get", "test:key:does_not_exist"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected error on non-existent key, got nil")
+	}
+
+	// 10. Test redis set with --json flag
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"set", "test:key:json_flag", "test_val", "--json"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to execute set with --json: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"status": "OK"`) {
+		t.Fatalf("expected JSON response from set, got %q", buf.String())
+	}
 }

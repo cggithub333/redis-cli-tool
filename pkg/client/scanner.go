@@ -9,25 +9,45 @@ import (
 
 // ScanKeys non-blocking SCAN iteration with safely chunked metadata pipelines (max 200 keys per pipeline flush).
 func (c *Client) ScanKeys(ctx context.Context, pattern string, cursor uint64, count int64) (*ScanResult, error) {
-	keys, nextCursor, err := c.Client.Scan(ctx, cursor, pattern, count).Result()
-	if err != nil {
-		return nil, err
+	targetCount := count
+	if targetCount <= 0 {
+		targetCount = 50
+	}
+
+	var allKeys []string
+	currCursor := cursor
+
+	for {
+		batchKeys, nextCursor, err := c.Client.Scan(ctx, currCursor, pattern, targetCount).Result()
+		if err != nil {
+			return nil, err
+		}
+		allKeys = append(allKeys, batchKeys...)
+		currCursor = nextCursor
+
+		if currCursor == 0 || len(allKeys) >= int(targetCount) {
+			break
+		}
+	}
+
+	if len(allKeys) > int(targetCount) {
+		allKeys = allKeys[:targetCount]
 	}
 
 	result := &ScanResult{
-		Cursor: nextCursor,
-		Keys:   make([]KeyMetadata, 0, len(keys)),
+		Cursor: currCursor,
+		Keys:   make([]KeyMetadata, 0, len(allKeys)),
 	}
 
 	const batchSize = 200
 
-	for i := 0; i < len(keys); i += batchSize {
+	for i := 0; i < len(allKeys); i += batchSize {
 		end := i + batchSize
-		if end > len(keys) {
-			end = len(keys)
+		if end > len(allKeys) {
+			end = len(allKeys)
 		}
 
-		batchKeys := keys[i:end]
+		batchKeys := allKeys[i:end]
 
 		pipe := c.Client.Pipeline()
 		var cmds []struct {
@@ -52,10 +72,14 @@ func (c *Client) ScanKeys(ctx context.Context, pattern string, cursor uint64, co
 		}
 
 		_, pipeErr := pipe.Exec(ctx)
-		// We process the commands even if there are errors (e.g., MEMORY USAGE not supported),
-		// but we might want to handle it selectively. MemoryUsage might return an error if it doesn't exist.
-		if pipeErr != nil && !strings.Contains(pipeErr.Error(), "ERR") && !strings.Contains(pipeErr.Error(), "unknown command") {
-			// Some other error we shouldn't ignore entirely? But we can just proceed and check individual command errors.
+		if pipeErr != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			errStr := pipeErr.Error()
+			if strings.Contains(errStr, "connection refused") || strings.Contains(errStr, "broken pipe") || strings.Contains(errStr, "i/o timeout") {
+				return nil, pipeErr
+			}
 		}
 
 		for _, c := range cmds {

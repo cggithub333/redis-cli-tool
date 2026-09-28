@@ -77,3 +77,27 @@ func TestIsBinaryData(t *testing.T) {
 		t.Error("expected false for UTF-8 string")
 	}
 }
+
+func TestAdaptiveDecoder_DisarmANSI(t *testing.T) {
+	malicious := "User profile message: Welcome to production system \x1b[31;1mwarning text\x1b[0m completed successfully."
+	res := DecodeStringPayload([]byte(malicious), false)
+	if strings.Contains(res.Formatted, "\x1b") {
+		t.Fatalf("expected ANSI escape code to be disarmed, got %q", res.Formatted)
+	}
+	if !strings.Contains(res.Formatted, "^[") {
+		t.Fatalf("expected ^[ replacement, got %q", res.Formatted)
+	}
+}
+
+func TestAdaptiveDecoder_RuneTruncation(t *testing.T) {
+	// Vietnamese Unicode string with multi-byte runes
+	str := "Xin chào thế giới Redis! Kiểm thử độ dài chuỗi UTF-8 an toàn."
+	truncated := truncateRunes(str, 15)
+	if !strings.HasSuffix(truncated, "...") {
+		t.Fatalf("expected ellipsis suffix, got %s", truncated)
+	}
+	runes := []rune(truncated)
+	if len(runes) > 15 {
+		t.Fatalf("expected at most 15 runes, got %d", len(runes))
+	}
+}

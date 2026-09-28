@@ -37,7 +37,11 @@ func Execute() {
 			}
 			os.Exit(safetyErr.Code)
 		}
-		fmt.Fprintln(os.Stderr, err)
+		if jsonFlag || formatFlag == "json" {
+			safety.NewSafetyError(1, err.Error()).EmitJSON(os.Stderr)
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
 		os.Exit(1)
 	}
 }

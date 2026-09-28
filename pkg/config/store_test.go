@@ -87,3 +87,27 @@ contexts:
 		t.Errorf("Expected password 'secret', got '%s'", loaded.Contexts[0].Password)
 	}
 }
+
+func TestStore_LiteralDollarSignPassword(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	yamlData := `
+current-context: dev
+contexts:
+  - name: dev
+    host: 127.0.0.1
+    port: 6379
+    password: p@$$w0rd$123
+`
+	os.WriteFile(configPath, []byte(yamlData), 0600)
+
+	loaded, err := Load(configPath)
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if loaded.Contexts[0].Password != "p@$$w0rd$123" {
+		t.Errorf("Expected password 'p@$$w0rd$123', got '%s'", loaded.Contexts[0].Password)
+	}
+}

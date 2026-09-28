@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"redis-cli-tool/pkg/format"
+	"redis-cli-tool/pkg/safety"
 )
 
 var inspectFullFlag bool
@@ -46,7 +47,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	}
 	defer cl.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
+	ctx, cancel := context.WithTimeout(cmd.Context(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
 	keyType, err := cl.Type(ctx, key).Result()
@@ -54,7 +55,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to query key type: %w", err)
 	}
 	if keyType == "none" {
-		return fmt.Errorf("key %q does not exist in context %q (DB %d)", key, targetCtx.Name, targetCtx.DB)
+		return safety.NewSafetyError(safety.ExitKeyNotFound, fmt.Sprintf("key %q does not exist in context %q (DB %d)", key, targetCtx.Name, targetCtx.DB))
 	}
 
 	ttl, _ := cl.TTL(ctx, key).Result()

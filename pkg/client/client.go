@@ -18,6 +18,9 @@ type Client struct {
 
 // NewClient constructs a new Redis client based on the provided config context.
 func NewClient(cfg *config.Context) (*Client, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("configuration context cannot be nil")
+	}
 	opts := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Username: cfg.Username,
