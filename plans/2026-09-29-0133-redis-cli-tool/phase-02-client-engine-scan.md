@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Client Engine & Non-Blocking SCAN"
-status: pending
+status: completed
 priority: P1
 effort: "2h"
 dependencies: ["phase-01-core-scaffolding-config.md"]
@@ -72,9 +72,9 @@ pkg/client/scanner.go:
 - **Expected Output**: PASS verifying latency calculation.
 
 ## Success Criteria
-- [ ] `Client` embeds `*redis.Client` allowing all downstream commands (`Get`, `Set`, `Info`, `Del`) to execute without wrapper boilerplate.
-- [ ] Connects cleanly to live Docker Redis instances (`localhost:6379` and `localhost:6380`).
-- [ ] `ScanKeys` executes without errors and chunks pipelines safely without memory bloat.
+- [x] `Client` embeds `*redis.Client` allowing all downstream commands (`Get`, `Set`, `Info`, `Del`) to execute without wrapper boilerplate.
+- [x] Connects cleanly to live Docker Redis instances (`localhost:6379` and `localhost:6380`).
+- [x] `ScanKeys` executes without errors and chunks pipelines safely without memory bloat.
 
 ## Risk Assessment
 - **Risk**: Enormous SCAN iterations blocking CLI memory.
