@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -87,11 +86,26 @@ func runShow(cmd *cobra.Command, args []string) error {
 	}
 
 	if jsonFlag || formatFlag == "json" {
-		data, err := json.MarshalIndent(res, "", "  ")
+		format.PurifyStream()
+		if fieldsFlag != "" {
+			fields := strings.Split(fieldsFlag, ",")
+			filteredKeys := make([]map[string]interface{}, len(res.Keys))
+			for i, k := range res.Keys {
+				filteredKeys[i] = format.FilterFields(k, fields)
+			}
+			outStr, err := format.SerializeJSON(filteredKeys, compactFlag)
+			if err != nil {
+				return err
+			}
+			cmd.Println(outStr)
+			return nil
+		}
+
+		outStr, err := format.SerializeJSON(res, compactFlag)
 		if err != nil {
 			return fmt.Errorf("failed to marshal scan result: %w", err)
 		}
-		cmd.Println(string(data))
+		cmd.Println(outStr)
 		return nil
 	}
 

@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Agent DX & Safety Guardrails"
-status: pending
+status: completed
 priority: P1
 effort: "2h"
 dependencies: ["phase-02-client-engine-scan.md", "phase-03-context-commands.md", "phase-04-key-browser-inspect.md"]
@@ -92,10 +92,10 @@ pkg/format/agent.go:
 - **Expected Output**: Compact 1-line JSON array without indentation spaces or log pollution.
 
 ## Success Criteria
-- [ ] `redis summary --json` returns valid JSON under 500 bytes.
-- [ ] `redis show --json --fields=key,type` slashes token count by > 65%.
-- [ ] `redis del "test:*" </dev/null` returns exit code 4 and JSON error on stderr without crashing tests.
-- [ ] Pattern deletion streams in 500-key chunks to `UNLINK` without memory exhaustion.
+- [x] `redis summary --json` returns valid JSON under 500 bytes.
+- [x] `redis show --json --fields=key,type` slashes token count by > 65%.
+- [x] `redis del "test:*" </dev/null` returns exit code 4 and JSON error on stderr without crashing tests.
+- [x] Pattern deletion streams in 500-key chunks to `UNLINK` without memory exhaustion.
 
 ## Risk Assessment
 - **Risk**: Logging statements polluting stdout JSON stream.
