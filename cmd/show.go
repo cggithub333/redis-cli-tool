@@ -97,7 +97,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			cmd.Println(outStr)
+			fmt.Fprintln(cmd.OutOrStdout(), outStr)
 			return nil
 		}
 
@@ -105,12 +105,12 @@ func runShow(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal scan result: %w", err)
 		}
-		cmd.Println(outStr)
+		fmt.Fprintln(cmd.OutOrStdout(), outStr)
 		return nil
 	}
 
 	if len(res.Keys) == 0 {
-		cmd.Printf("No keys matching pattern %q found in context %q (DB %d).\n", showPatternFlag, targetCtx.Name, targetCtx.DB)
+		fmt.Fprintf(cmd.OutOrStdout(), "No keys matching pattern %q found in context %q (DB %d).\n", showPatternFlag, targetCtx.Name, targetCtx.DB)
 		return nil
 	}
 
@@ -138,12 +138,12 @@ func runShow(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cmd.Println(format.RenderTable(headers, rows))
+	fmt.Fprintln(cmd.OutOrStdout(), format.RenderTable(headers, rows))
 
 	if res.Cursor != 0 {
-		cmd.Printf("\nShowing %d keys. Next cursor: %d (use --cursor=%d for next batch)\n", len(res.Keys), res.Cursor, res.Cursor)
+		fmt.Fprintf(cmd.OutOrStdout(), "\nShowing %d keys. Next cursor: %d (use --cursor=%d for next batch)\n", len(res.Keys), res.Cursor, res.Cursor)
 	} else {
-		cmd.Printf("\nShowing %d keys. (Scan complete, cursor returned to 0)\n", len(res.Keys))
+		fmt.Fprintf(cmd.OutOrStdout(), "\nShowing %d keys. (Scan complete, cursor returned to 0)\n", len(res.Keys))
 	}
 
 	return nil

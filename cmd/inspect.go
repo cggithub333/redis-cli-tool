@@ -81,7 +81,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal inspection JSON: %w", err)
 		}
-		cmd.Println(string(data))
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
@@ -98,9 +98,9 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		encoding,
 	)
 
-	cmd.Println(cardStyle.Render(headerText))
-	cmd.Println("\nVALUE PREVIEW:")
-	cmd.Println(decoded.Formatted)
+	fmt.Fprintln(cmd.OutOrStdout(), cardStyle.Render(headerText))
+	fmt.Fprintln(cmd.OutOrStdout(), "\nVALUE PREVIEW:")
+	fmt.Fprintln(cmd.OutOrStdout(), decoded.Formatted)
 
 	return nil
 }

@@ -126,10 +126,10 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 
 	if len(cfg.Contexts) == 0 {
 		if jsonFlag || formatFlag == "json" {
-			cmd.Println("[]")
+			fmt.Fprintln(cmd.OutOrStdout(), "[]")
 			return nil
 		}
-		cmd.Println("No contexts configured. Create one with: redis context create <name>")
+		fmt.Fprintln(cmd.OutOrStdout(), "No contexts configured. Create one with: redis context create <name>")
 		return nil
 	}
 
@@ -183,7 +183,7 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal contexts JSON: %w", err)
 		}
-		cmd.Println(string(data))
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
@@ -215,7 +215,7 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	cmd.Println(format.RenderTable(headers, rows))
+	fmt.Fprintln(cmd.OutOrStdout(), format.RenderTable(headers, rows))
 	return nil
 }
 
@@ -241,7 +241,7 @@ func runContextUse(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Advisory: Global context switched to %q. For concurrent scripts/subagents, prefer --context flag or REDIS_CONTEXT env var.\n", name)
 	}
 
-	cmd.Printf("Switched to context %q.\n", name)
+	fmt.Fprintf(cmd.OutOrStdout(), "Switched to context %q.\n", name)
 	return nil
 }
 
@@ -259,11 +259,11 @@ func runContextCurrent(cmd *cobra.Command, args []string) error {
 
 	if jsonFlag || formatFlag == "json" {
 		data, _ := json.MarshalIndent(map[string]string{"current_context": ctx.Name}, "", "  ")
-		cmd.Println(string(data))
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
-	cmd.Println(ctx.Name)
+	fmt.Fprintln(cmd.OutOrStdout(), ctx.Name)
 	return nil
 }
 
@@ -298,7 +298,7 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save context: %w", err)
 	}
 
-	cmd.Printf("Context %q created.\n", name)
+	fmt.Fprintf(cmd.OutOrStdout(), "Context %q created.\n", name)
 	return nil
 }
 
@@ -318,7 +318,7 @@ func runContextDelete(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save contexts: %w", err)
 	}
 
-	cmd.Printf("Context %q deleted.\n", name)
+	fmt.Fprintf(cmd.OutOrStdout(), "Context %q deleted.\n", name)
 	return nil
 }
 
@@ -380,6 +380,6 @@ func runContextImport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to save contexts: %w", err)
 	}
 
-	cmd.Printf("Successfully imported %d context(s).\n", len(importedCfg.Contexts))
+	fmt.Fprintf(cmd.OutOrStdout(), "Successfully imported %d context(s).\n", len(importedCfg.Contexts))
 	return nil
 }

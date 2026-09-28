@@ -1,7 +1,7 @@
 ---
 phase: 7
 title: "Python XDG Integration Suite & Review Board Quality Audit"
-status: pending
+status: completed
 priority: P1
 effort: "1.5h"
 dependencies:
@@ -89,10 +89,10 @@ Step 4: Review Board Audit Gate:
 - **Expected Output**: Exit code 0, ready for `/james:code-review --pending --board`.
 
 ## Success Criteria
-- [ ] Python XDG integration suite passes 100% against the compiled `./bin/redis` binary.
-- [ ] 0 container crashes or dirty logs in Docker Redis instances.
-- [ ] 100% Go test suite passing with `-race` enabled.
-- [ ] Plan concludes cleanly with Review Board sign-off.
+- [x] Python XDG integration suite passes 100% against the compiled `./bin/redis` binary.
+- [x] 0 container crashes or dirty logs in Docker Redis instances.
+- [x] 100% Go test suite passing with `-race` enabled.
+- [x] Plan concludes cleanly with Review Board sign-off.
 
 ## Risk Assessment
 - **Risk**: Python test runner missing `pytest`.

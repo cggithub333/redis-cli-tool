@@ -104,7 +104,7 @@ func runSummary(cmd *cobra.Command, args []string) error {
 		} else {
 			data, _ = json.MarshalIndent(summary, "", "  ")
 		}
-		cmd.Println(string(data))
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
@@ -126,6 +126,6 @@ func runSummary(cmd *cobra.Command, args []string) error {
 		summary.OpsPerSec,
 	)
 
-	cmd.Println(cardStyle.Render(content))
+	fmt.Fprintln(cmd.OutOrStdout(), cardStyle.Render(content))
 	return nil
 }

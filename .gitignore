@@ -9,3 +9,4 @@ redis
 
 # OS artifacts
 .DS_Store
+__pycache__/

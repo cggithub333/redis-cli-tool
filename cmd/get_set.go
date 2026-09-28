@@ -60,17 +60,17 @@ func runGet(cmd *cobra.Command, args []string) error {
 
 	if jsonFlag || formatFlag == "json" {
 		data, _ := json.MarshalIndent(map[string]interface{}{
-			"key":         key,
-			"value":       decoded.Formatted,
-			"value_type":  decoded.ValueType,
-			"raw_bytes":   decoded.RawBytes,
-			"truncated":   decoded.Truncated,
+			"key":        key,
+			"value":      decoded.Formatted,
+			"value_type": decoded.ValueType,
+			"raw_bytes":  decoded.RawBytes,
+			"truncated":  decoded.Truncated,
 		}, "", "  ")
-		cmd.Println(string(data))
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
 		return nil
 	}
 
-	cmd.Println(decoded.Formatted)
+	fmt.Fprintln(cmd.OutOrStdout(), decoded.Formatted)
 	return nil
 }
 
@@ -91,6 +91,6 @@ func runSet(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to set key %q: %w", key, err)
 	}
 
-	cmd.Println("OK")
+	fmt.Fprintln(cmd.OutOrStdout(), "OK")
 	return nil
 }
