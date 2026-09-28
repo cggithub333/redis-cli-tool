@@ -1,0 +1,11 @@
+# Binaries
+bin/
+redis
+
+# Test sandboxes & temp files
+*.tmp
+*.log
+.coverage/
+
+# OS artifacts
+.DS_Store

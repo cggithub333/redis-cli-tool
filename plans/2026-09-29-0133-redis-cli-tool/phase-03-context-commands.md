@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Context Management Subcommands & Table Formatter"
-status: pending
+status: completed
 priority: P1
 effort: "2h"
 dependencies: ["phase-01-core-scaffolding-config.md", "phase-02-client-engine-scan.md"]
@@ -67,11 +67,11 @@ redis context use ───────► Concurrency Guard:
 - **Expected Output**: PASS creating, listing, exporting, and deleting contexts.
 
 ## Success Criteria
-- [ ] `pkg/format/table.go` is established and reusable across CLI commands.
-- [ ] `redis context create local-common --host 127.0.0.1 --port 6379` successfully creates context.
-- [ ] `redis context ls` lists both `local-common` and `local-realtime` with health status badges.
-- [ ] `redis context use local-realtime` switches active context.
-- [ ] `redis context export` produces sanitized YAML without plaintext credentials.
+- [x] `pkg/format/table.go` is established and reusable across CLI commands.
+- [x] `redis context create local-common --host 127.0.0.1 --port 6379` successfully creates context.
+- [x] `redis context ls` lists both `local-common` and `local-realtime` with health status badges.
+- [x] `redis context use local-realtime` switches active context.
+- [x] `redis context export` produces sanitized YAML without plaintext credentials.
 
 ## Risk Assessment
 - **Risk**: Remote unreachable hosts slowing down `context ls`.

@@ -16,3 +16,39 @@ type Config struct {
 	CurrentContext string    `yaml:"current-context"`
 	Contexts       []Context `yaml:"contexts"`
 }
+
+// GetContext retrieves a context by name
+func (cfg *Config) GetContext(name string) (*Context, bool) {
+	for i := range cfg.Contexts {
+		if cfg.Contexts[i].Name == name {
+			return &cfg.Contexts[i], true
+		}
+	}
+	return nil, false
+}
+
+// SetContext adds or updates a context by name
+func (cfg *Config) SetContext(ctx Context) {
+	for i := range cfg.Contexts {
+		if cfg.Contexts[i].Name == ctx.Name {
+			cfg.Contexts[i] = ctx
+			return
+		}
+	}
+	cfg.Contexts = append(cfg.Contexts, ctx)
+}
+
+// DeleteContext removes a context by name, clearing CurrentContext if it matches
+func (cfg *Config) DeleteContext(name string) bool {
+	for i := range cfg.Contexts {
+		if cfg.Contexts[i].Name == name {
+			cfg.Contexts = append(cfg.Contexts[:i], cfg.Contexts[i+1:]...)
+			if cfg.CurrentContext == name {
+				cfg.CurrentContext = ""
+			}
+			return true
+		}
+	}
+	return false
+}
+

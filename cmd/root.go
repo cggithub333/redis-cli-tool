@@ -30,6 +30,17 @@ func Execute() {
 	}
 }
 
+// ResetFlags restores default flag values (useful for tests)
+func ResetFlags() {
+	contextFlag = ""
+	formatFlag = "table"
+	jsonFlag = false
+	compactFlag = false
+	fieldsFlag = ""
+	forceFlag = false
+	timeoutFlag = 10
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Context to use (overrides current-context)")
 	rootCmd.PersistentFlags().StringVar(&formatFlag, "format", "table", "Output format (table, json, yaml)")

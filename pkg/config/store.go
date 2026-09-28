@@ -9,6 +9,19 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// DefaultConfigPath returns $XDG_CONFIG_HOME/redis/contexts.yaml or ~/.config/redis/contexts.yaml
+func DefaultConfigPath() string {
+	configDir := os.Getenv("XDG_CONFIG_HOME")
+	if configDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return filepath.Join(os.Getenv("HOME"), ".config", "redis", "contexts.yaml")
+		}
+		configDir = filepath.Join(home, ".config")
+	}
+	return filepath.Join(configDir, "redis", "contexts.yaml")
+}
+
 // Load loads the configuration from the specified file path.
 // It returns an empty config (not nil) and os.ErrNotExist if the file doesn't exist.
 func Load(path string) (*Config, error) {
