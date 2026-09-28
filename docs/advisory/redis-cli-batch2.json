@@ -1,0 +1,320 @@
+{
+  "lang": "vi",
+  "title": "Kiến Trúc Tối Ưu Hóa CLI Cho Cả Con Người (Human DX) & AI Agent (Agent DX)",
+  "subtitle": "Phân Tích Đánh Đổi Kỹ Thuật Cho Các Tình Huống Biên, Bảo Mật Concurrency & Cơ Chế Phòng Vệ",
+  "project_context": "Đào sâu các cơ chế nâng cao cho công cụ binary redis: tối ưu hóa token cho AI agent, ưu tiên phân giải context khi chạy đồng thời, phòng thủ lệnh hủy diệt và quản lý payload dung lượng lớn.",
+  "phases": [
+    {
+      "id": "gate_2_1",
+      "tab_title": "1. Định Dạng Token Cho Agent",
+      "technical_level": "High",
+      "question": "Làm thế nào để đầu ra JSON của CLI được tối ưu hóa tối đa cho ngân sách context token của AI Agent?",
+      "feynman_analogy": "Giống như việc gửi điện tín đường dài: bạn trả tiền theo từng ký tự, vậy bạn gửi một bức thư dãn dòng in hoa đẹp mắt hay một bức điện vắn tắt mã hóa chuẩn xác chỉ chứa dữ kiện cốt lõi?",
+      "plain_english": "Cơ chế định dạng cờ `--json`: JSON nén một dòng (ndjson / compact) loại bỏ khoảng trắng dư thừa kết hợp lọc trường (`--fields=key,type,ttl`) để tiết kiệm 70% token cho LLM.",
+      "options": [
+        {
+          "id": "opt_2_1_1",
+          "title": "Đầu ra linh hoạt: Hỗ trợ `--format=json` (nén một dòng mặc định khi pipe) kết hợp cờ lọc trường `--fields` và `--limit`",
+          "recommended": true,
+          "summary": "Mặc định nén phẳng JSON một dòng loại bỏ toàn bộ khoảng trắng dư thừa, chỉ trả về các trường được chỉ định giúp Agent tiếp nhận dữ liệu cực kỳ tiết kiệm token.",
+          "feynman_analogy": "Bản báo cáo tình báo quân sự: chỉ chứa đúng tọa độ và trạng thái mục tiêu, lược bỏ toàn bộ lời chào và trang trí văn bản.",
+          "mechanics": "Khi nhận cờ `--json` hoặc `--format=json`, nếu phát hiện stdout không phải tty hoặc có cờ `--compact`, bộ tuần tự hóa serialize trực tiếp thành chuỗi JSON một dòng không có khoảng trắng. Cờ `--fields` lọc bỏ các metadata không cần thiết trước khi xuất ra.",
+          "pros": [
+            "Giảm tới 60-75% lượng token tiêu thụ khi LLM đọc kết quả trả về từ lệnh CLI, ngăn ngừa tràn cửa sổ ngữ cảnh (context window).",
+            "Tương thích hoàn hảo với các đường ống lệnh Linux như jq, awk và các Agent Tool Parser chuẩn.",
+            "Vẫn cung cấp cờ `--pretty` khi người dùng muốn đọc thủ công bằng mắt trên terminal."
+          ],
+          "cons": [
+            "Cần xây dựng thêm logic bộ lọc trường (field selector) linh hoạt trong mã nguồn Go."
+          ],
+          "fit_when": "Mọi quy trình tự động hóa nơi AI Agent hoặc CI script gọi trực tiếp CLI để thu thập dữ liệu.",
+          "avoid_when": "Chỉ có duy nhất người dùng xem bằng mắt thường mà không bao giờ dùng script."
+        },
+        {
+          "id": "opt_2_1_2",
+          "title": "Chỉ xuất JSON thụt lề định dạng sẵn (Pretty JSON)",
+          "recommended": false,
+          "summary": "Mặc định xuất JSON có thụt lề 2 hoặc 4 dấu cách và xuống dòng cho mọi trường dữ liệu.",
+          "feynman_analogy": "Cuốn sách bìa cứng trình bày rộng rãi: dễ nhìn nhưng mang đi xa rất nặng và cồng kềnh.",
+          "mechanics": "Gọi hàm json.MarshalIndent() cho mọi kết quả JSON.",
+          "pros": [
+            "Con người có thể đọc ngay lập tức mà không cần dùng thêm lệnh `| jq`."
+          ],
+          "cons": [
+            "Lãng phí gấp 3 đến 4 lần lượng token của LLM do các ký tự thụt lề và xuống dòng lặp đi lặp lại vô ích.",
+            "Tăng kích thước bộ đệm I/O khi dữ liệu trả về có hàng nghìn phần tử."
+          ],
+          "fit_when": "Mục đích sử dụng thuần túy chỉ dành cho kỹ sư đọc thủ công trên màn hình.",
+          "avoid_when": "Công cụ được thiết kế phục vụ tối ưu cho luồng làm việc của AI Agent."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_2",
+      "tab_title": "2. Phân Giải Context Đồng Thời",
+      "technical_level": "High",
+      "question": "Làm thế nào để tránh xung đột khi nhiều Terminal hoặc Subagent chuyển đổi Context cùng một thời điểm?",
+      "feynman_analogy": "Giống như nút điều hòa trong phòng khách chung: nếu ai đi qua cũng bấm đổi nhiệt độ tổng, mọi người sẽ tranh cãi nhau. Giải pháp là cấp cho mỗi người một quạt điều chỉnh cá nhân.",
+      "plain_english": "Thiết lập thứ tự ưu tiên phân giải kết nối: Cờ câu lệnh (`--context`) > Biến môi trường (`REDIS_CONTEXT`) > File cấu hình toàn cục (`current-context`).",
+      "options": [
+        {
+          "id": "opt_2_2_1",
+          "title": "Thứ tự ưu tiên 3 tầng: Cờ `--context <name>` > Biến môi trường `REDIS_CONTEXT` > Cấu hình toàn cục",
+          "recommended": true,
+          "summary": "Áp dụng chuẩn mực của Kubernetes/Docker: cho phép mỗi tiến trình hoặc Agent chỉ định context riêng thông qua cờ hoặc biến môi trường mà không ghi đè cấu hình toàn cục.",
+          "feynman_analogy": "Quy tắc chỉ huy: lệnh trực tiếp tại chỗ có hiệu lực cao nhất, sau đó đến chỉ thị phiên làm việc, cuối cùng mới dùng bảng nội quy dán trên tường.",
+          "mechanics": "Khi thực thi bất kỳ câu lệnh nào, hàm ResolveContext() kiểm tra: (1) Cờ `--context` trên CLI -> (2) Biến môi trường os.Getenv('REDIS_CONTEXT') -> (3) Giá trị current-context trong file YAML. Lệnh `redis context use <name>` chỉ thay đổi tầng 3.",
+          "pros": [
+            "Cho phép nhiều Subagent hoặc tiến trình chạy song song tương tác với các Redis cluster khác nhau hoàn toàn cô lập, không bao giờ bị race condition.",
+            "Lập trình viên có thể mở nhiều tab terminal làm việc đồng thời trên local và staging mà không bị chuyển nhầm môi trường.",
+            "Tuân thủ 100% thói quen của các công cụ DevOps hàng đầu thế giới (như kubectl và docker)."
+          ],
+          "cons": [
+            "Cần thêm cờ `--context` vào bộ cờ gốc toàn cục (root persistent flags) của Cobra."
+          ],
+          "fit_when": "Môi trường có nhiều subagent, nhiều cửa sổ terminal hoặc các pipeline CI chạy song song.",
+          "avoid_when": "Hệ thống chỉ có duy nhất một người dùng trên một terminal duy nhất."
+        },
+        {
+          "id": "opt_2_2_2",
+          "title": "Chỉ dựa duy nhất vào file trạng thái toàn cục (~/.config/redis/contexts.yaml)",
+          "recommended": false,
+          "summary": "Mọi lệnh đều đọc ngữ cảnh đang kích hoạt từ file trên đĩa cứng.",
+          "feynman_analogy": "Cả nhà dùng chung một chiếc chìa khóa duy nhất: ai cầm đi thì người khác phải chờ hoặc dùng nhầm cửa.",
+          "mechanics": "Mọi thao tác đều phụ thuộc vào trường current-context trong file YAML.",
+          "pros": [
+            "Logic phân giải đơn giản chỉ gồm một dòng đọc file cấu hình."
+          ],
+          "cons": [
+            "Cực kỳ nguy hiểm: nếu Agent A chuyển sang 'prod' trong khi Agent B đang định xóa dữ liệu trên 'local', Agent B sẽ vô tình xóa nhầm dữ liệu production.",
+            "Không thể chạy kiểm thử tự động song song trên nhiều môi trường."
+          ],
+          "fit_when": "Chỉ là prototype thử nghiệm cá nhân trong 1 giờ.",
+          "avoid_when": "Bất kỳ công cụ nào hướng tới sự chuyên nghiệp và an toàn trong môi trường AI Agent."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_3",
+      "tab_title": "3. Phòng Vệ Thao Tác Hủy Diệt",
+      "technical_level": "High",
+      "question": "Cơ chế bảo vệ trước các lệnh hủy diệt dữ liệu (`flushdb`, `flushall`, `del` hàng loạt) nên thiết kế thế nào để Agent không bị treo?",
+      "feynman_analogy": "Giống như nút kích hoạt tên lửa: cần có nắp bảo hiểm và chìa khóa kép; nếu người ra lệnh là robot tự động qua sóng radio thì không thể bắt nó 'gõ Y/N' trên bàn phím tại chỗ.",
+      "plain_english": "Cơ chế bảo vệ: Cờ `--force` bắt buộc khi chạy non-interactive, hỗ trợ cờ `--dry-run` để Agent dự đoán số lượng key bị ảnh hưởng trước khi xóa.",
+      "options": [
+        {
+          "id": "opt_2_3_1",
+          "title": "Chế độ bảo vệ thông minh: Tự động yêu cầu xác nhận khi gõ tay, nhưng bắt buộc cờ `--force` trong script/Agent kèm hỗ trợ `--dry-run`",
+          "recommended": true,
+          "summary": "Nếu terminal là TTY người dùng, hiển thị cảnh báo đỏ và yêu cầu gõ tên context để xác nhận. Nếu là script/Agent (non-TTY), từ chối ngay lập tức trừ khi có cờ `--force`. Cung cấp cờ `--dry-run` để kiểm tra trước số lượng key sẽ bị tác động.",
+          "feynman_analogy": "Hộp khóa an toàn hai lớp: con người mở bằng mật mã trực tiếp, còn robot phải cung cấp chữ ký điện tử ủy quyền rõ ràng.",
+          "mechanics": "Kiểm tra isatty.IsTerminal(). Nếu non-TTY và thiếu `--force`, trả về mã lỗi Exit Code 3 (SAFETY_VIOLATION) kèm thông điệp JSON rõ ràng. Khi có `--dry-run`, chỉ đếm số key khớp pattern qua SCAN mà không gửi lệnh DEL.",
+          "pros": [
+            "Ngăn chặn hoàn toàn thảm họa Agent vô tình xóa sạch cơ sở dữ liệu production do hiểu sai câu lệnh.",
+            "Tránh triệt để tình trạng Agent bị treo đơ vĩnh viễn (hung process) do CLI đang chờ người dùng nhập ký tự 'y' trên stdin.",
+            "Cờ `--dry-run` cho phép Agent lập luận và kiểm chứng số lượng bản ghi bị ảnh hưởng trước khi thực sự hành động."
+          ],
+          "cons": [
+            "Agent cần phải học cách truyền thêm cờ `--force` khi thực sự muốn thực hiện thao tác xóa có chủ đích."
+          ],
+          "fit_when": "Chuẩn mực an toàn cho mọi CLI tương tác với cơ sở dữ liệu trong kỷ nguyên AI Agent.",
+          "avoid_when": "Không có môi trường nào nên bỏ qua cơ chế an toàn sống còn này."
+        },
+        {
+          "id": "opt_2_3_2",
+          "title": "Luôn yêu cầu nhập chuỗi xác nhận qua stdin (interactive prompt)",
+          "recommended": false,
+          "summary": "Bất kể ai gọi lệnh, CLI luôn in câu hỏi 'Are you sure? (yes/no)' và chờ bàn phím nhập vào.",
+          "feynman_analogy": "Cánh cửa luôn bắt khách phải bấm chuông đứng đợi người ra mở dù khách là xe cứu thương đang làm nhiệm vụ khẩn cấp.",
+          "mechanics": "Sử dụng hàm bufio.NewReader(os.Stdin).ReadString() một cách vô điều kiện.",
+          "pros": [
+            "Bảo đảm con người ngồi trước màn hình luôn có cơ hội dừng lại suy nghĩ."
+          ],
+          "cons": [
+            "Làm treo đơ 100% các Agent tự động hoặc script CI/CD do không có người gõ phím, dẫn đến timeout lỗi hệ thống."
+          ],
+          "fit_when": "Chỉ dành cho công cụ hoàn toàn không bao giờ được gọi từ script hay agent.",
+          "avoid_when": "Mục tiêu là hỗ trợ tối ưu hóa quy trình làm việc của AI Agent."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_4",
+      "tab_title": "4. Xử Lý Payload Khổng Lồ",
+      "technical_level": "Medium",
+      "question": "Xử lý thế nào khi một key chứa giá trị cực lớn (ví dụ chuỗi 50MB hoặc Hash có 100,000 fields) để tránh tràn RAM CLI?",
+      "feynman_analogy": "Giống như việc giao nhận kiện hàng nặng 1 tấn: bạn cố nhấc cả khối vào phòng khách làm sập sàn nhà, hay bóc dỡ từng thùng nhỏ đưa vào kho?",
+      "plain_english": "Cơ chế an toàn bộ nhớ: Giới hạn trần tải về mặc định (ví dụ 256KB cho preview), cảnh báo kích thước bộ nhớ qua `MEMORY USAGE`, và cung cấp cờ `--max-size` / `--stream` khi cần tải trọn vẹn.",
+      "options": [
+        {
+          "id": "opt_2_4_1",
+          "title": "Cơ chế bảo vệ tải: Kiểm tra sơ bộ kích thước (`MEMORY USAGE` / `STRLEN`), cắt gọn preview an toàn (mặc định 256KB) kèm cờ `--full`",
+          "recommended": true,
+          "summary": "Trước khi tải toàn bộ dữ liệu của key, kiểm tra kích thước ước tính. Nếu giá trị quá lớn, chỉ tải một phần đầu để hiển thị preview và kèm ghi chú thông báo dung lượng thực tế.",
+          "feynman_analogy": "Bản tóm tắt sách dày: cho đọc thử mục lục và chương 1, nếu muốn lấy trọn bộ thì yêu cầu gửi xe chuyên dụng đến chở.",
+          "mechanics": "Với String lớn, sử dụng lệnh `GETRANGE key 0 262143` để chỉ đọc 256KB đầu tiên. Với Hash/Set lớn, sử dụng `HSCAN`/`SSCAN` lấy mẫu 50 fields đầu tiên kèm tổng số lượng trường.",
+          "pros": [
+            "Ngăn chặn hoàn toàn sự cố CLI bị Out-Of-Memory (OOM) hoặc làm đứng nghẽn băng thông mạng của máy chủ Redis.",
+            "Tốc độ phản hồi lệnh hiển thị luôn luôn dưới 50 mili-giây bất kể giá trị trong Redis lớn đến mức nào.",
+            "Cung cấp thông tin trực quan cho lập trình viên và Agent biết key này đang chiếm bao nhiêu megabyte RAM trên server."
+          ],
+          "cons": [
+            "Phải gửi thêm một lệnh kiểm tra dung lượng hoặc sử dụng lệnh đọc theo khoảng (range) thay vì GET thuần túy."
+          ],
+          "fit_when": "Môi trường Redis thực tế nơi các dịch vụ có thể lưu trữ cached HTML, serialized objects hoặc tệp nhị phân nén lớn.",
+          "avoid_when": "Chắc chắn 100% tất cả các key chỉ lưu trữ số đếm hoặc UUID ngắn."
+        },
+        {
+          "id": "opt_2_4_2",
+          "title": "Luôn dùng lệnh GET / HGETALL đọc toàn bộ 100% dữ liệu vào bộ nhớ",
+          "recommended": false,
+          "summary": "Tải toàn bộ giá trị của key vào RAM của máy CLI rồi mới định dạng.",
+          "feynman_analogy": "Uống thẳng cả vòi rồng cứu hỏa: nếu nước phun quá mạnh bạn sẽ bị cuốn trôi ngay lập tức.",
+          "mechanics": "Gọi trực tiếp client.Get() hoặc client.HGetAll() đọc trọn vẹn payload.",
+          "pros": [
+            "Mã nguồn ngắn gọn, không cần xử lý các logic phân đoạn hay preview."
+          ],
+          "cons": [
+            "Khi gặp key chứa vài chục megabyte dữ liệu, terminal sẽ bị đơ cứng, ngốn sạch RAM và làm tê liệt đường truyền.",
+            "Làm quá tải luồng phản hồi của máy chủ Redis trong các hệ thống đang chịu tải cao."
+          ],
+          "fit_when": "Chỉ chạy trong bài tập lab nhỏ với vài chuỗi test ngắn.",
+          "avoid_when": "Bất kỳ công cụ nào nhắm đến tiêu chuẩn phần mềm sản xuất."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_5",
+      "tab_title": "5. Lệnh Tóm Tắt Nhanh Cho Agent",
+      "technical_level": "Medium",
+      "question": "Nên cung cấp lệnh tóm tắt tổng quan nào để AI Agent nắm bắt nhanh trạng thái toàn bộ Redis chỉ trong một bước gọi công cụ?",
+      "feynman_analogy": "Giống như chiếc đồng hồ thông minh trên cổ tay: hiển thị ngay nhịp tim, số bước chân và thời lượng pin trong một cái liếc mắt, thay vì bắt bạn đi bệnh viện làm xét nghiệm máu toàn phần.",
+      "plain_english": "Xây dựng subcommand chuyên biệt `redis summary` hoặc `redis status` xuất ra một JSON tinh gọn chứa các chỉ số cốt lõi (RAM, clients, key count theo DB, replication, hit rate) dưới 50 dòng JSON.",
+      "options": [
+        {
+          "id": "opt_2_5_1",
+          "title": "Subcommand chuyên biệt `redis summary` (hoặc `status`): Trích xuất các chỉ số sống còn thành một JSON súc tích",
+          "recommended": true,
+          "summary": "Tổng hợp có chọn lọc từ lệnh INFO và DBSIZE: Phiên bản Redis, Role (master/replica), Bộ nhớ đã dùng / đỉnh điểm, Số lượng kết nối, Số lượng key theo từng DB, Tỷ lệ Cache Hit/Miss.",
+          "feynman_analogy": "Bảng tóm tắt chỉ số sức khỏe định kỳ: cô đọng toàn bộ tình trạng cơ thể vào một trang A4 duy nhất.",
+          "mechanics": "Chạy lệnh INFO và DBSIZE, sử dụng bộ lọc parser để chỉ trích xuất khoảng 15 chỉ số quan trọng nhất, đóng gói thành cấu trúc dữ liệu JSON gọn gàng dưới 500 bytes.",
+          "pros": [
+            "AI Agent chỉ cần gọi đúng 1 lệnh là có đầy đủ ngữ cảnh để chẩn đoán hệ thống, tiết kiệm 90% chi phí token so với việc đọc toàn bộ văn bản INFO thô.",
+            "Giúp lập trình viên có cái nhìn tổng quan tức thì về sức chứa và tải của cụm Redis đang chọn.",
+            "Cực kỳ trực quan khi hiển thị dạng bảng thông số trên terminal với các thanh đo phần trăm bộ nhớ màu sắc."
+          ],
+          "cons": [
+            "Cần viết một bộ trích xuất và ánh xạ các trường từ kết quả trả về của Redis INFO."
+          ],
+          "fit_when": "Tính năng thiết yếu để tối ưu hóa quy trình làm việc của AI Agent và trải nghiệm điều hành DevOps.",
+          "avoid_when": "Chỉ muốn giữ số lượng subcommand ở mức tối thiểu tuyệt đối."
+        },
+        {
+          "id": "opt_2_5_2",
+          "title": "Chỉ cung cấp lệnh `redis raw INFO` trả về toàn bộ chuỗi văn bản gốc",
+          "recommended": false,
+          "summary": "In toàn bộ nội dung văn bản hàng trăm dòng từ lệnh INFO của Redis.",
+          "feynman_analogy": "Đưa cho bạn cả cuốn bách khoa toàn thư khi bạn chỉ muốn hỏi bây giờ là mấy giờ.",
+          "mechanics": "Gửi lệnh INFO và in thẳng chuỗi text ra màn hình.",
+          "pros": [
+            "Không tốn công viết logic trích xuất chỉ số."
+          ],
+          "cons": [
+            "Đổ ra hơn 300 dòng văn bản không cấu trúc, ngốn hàng nghìn token của Agent một cách lãng phí và khó parse tự động."
+          ],
+          "fit_when": "Chỉ người dùng thủ công cần soi các thông số cấu hình sâu của Redis engine.",
+          "avoid_when": "Ưu tiên xây dựng công cụ hiện đại, tối ưu cho Agent."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_6",
+      "tab_title": "6. Quản Lý Lỗi & Exit Codes",
+      "technical_level": "Medium",
+      "question": "Quy ước mã lỗi (Exit Codes) và thông điệp lỗi nên được tiêu chuẩn hóa như thế nào để Agent xử lý tự động chính xác?",
+      "feynman_analogy": "Giống như đèn tín hiệu giao thông: đỏ là dừng, vàng là giảm tốc, xanh là đi; nếu đèn chỉ nhấp nháy một màu duy nhất thì xe tự lái sẽ không biết phải xử lý ra sao.",
+      "plain_english": "Thiết lập bảng mã thoát tiêu chuẩn (Exit 0=Thành công, 1=Lỗi kết nối/Timeout, 2=Sai xác thực, 3=Không tìm thấy key, 4=Vi phạm an toàn) kèm stderr dạng JSON khi bật cờ `--json`.",
+      "options": [
+        {
+          "id": "opt_2_6_1",
+          "title": "Bảng mã thoát có cấu trúc ngữ nghĩa (Semantic Exit Codes) + Thông điệp lỗi chuẩn hóa JSON trên Stderr",
+          "recommended": true,
+          "summary": "Phân loại mã lỗi rõ ràng theo từng nguyên nhân cụ thể, giúp AI Agent và bash script nhận biết chính xác tình trạng lỗi mà không cần phân tích cú pháp chuỗi văn bản.",
+          "feynman_analogy": "Hộp đen máy bay: ghi nhận chính xác từng mã sự cố kỹ thuật theo quy chuẩn quốc tế.",
+          "mechanics": "Định nghĩa hằng số: ExitOK=0, ExitConnectionError=1, ExitAuthError=2, ExitKeyNotFound=3, ExitSafetyGuardrail=4, ExitSyntaxError=5. Khi có lỗi và cờ `--json` bật, in ra stderr: `{\"error\": \"connection timed out\", \"code\": 1, \"target\": \"127.0.0.1:6379\"}`.",
+          "pros": [
+            "AI Agent có thể tự động lập luận và khắc phục: nếu mã 2 (Auth Error) thì kiểm tra mật khẩu, nếu mã 1 (Timeout) thì kiểm tra mạng hoặc chuyển context.",
+            "Tách biệt hoàn toàn luồng dữ liệu (stdout) và luồng chẩn đoán lỗi (stderr).",
+            "Đạt chuẩn mực cao nhất của thiết kế phần mềm dòng lệnh Unix/POSIX."
+          ],
+          "cons": [
+            "Cần duy trì một bảng tra cứu lỗi và bọc các lỗi trả về từ go-redis một cách nhất quán."
+          ],
+          "fit_when": "Bắt buộc đối với mọi công cụ CLI được sử dụng trong kịch bản tự động hóa hoặc tích hợp AI Agent.",
+          "avoid_when": "Không có lý do để bỏ qua chuẩn mực này."
+        },
+        {
+          "id": "opt_2_6_2",
+          "title": "Chỉ dùng Exit Code 1 cho mọi trường hợp lỗi (Generic Exit 1)",
+          "recommended": false,
+          "summary": "Mọi lỗi đều thoát với mã 1 và in một chuỗi văn bản tùy ý ra màn hình.",
+          "feynman_analogy": "Chiếc còi báo động chỉ kêu một tiếng duy nhất cho cả cháy nhà, mất điện lẫn có người bấm chuông cửa.",
+          "mechanics": "Gọi os.Exit(1) mỗi khi hàm trả về error != nil.",
+          "pros": [
+            "Cách làm nhanh nhất khi viết mã ban đầu."
+          ],
+          "cons": [
+            "Agent không thể biết được nguyên nhân thất bại trừ khi phải dùng regex quét chuỗi văn bản lỗi vốn dễ thay đổi.",
+            "Gây khó khăn cho các kịch bản kiểm thử tự động xác nhận lỗi mong muốn."
+          ],
+          "fit_when": "Các đoạn script ngắn dùng một lần rồi bỏ.",
+          "avoid_when": "Một công cụ nhị phân chính thức phát hành lâu dài."
+        }
+      ]
+    },
+    {
+      "id": "gate_2_7",
+      "tab_title": "7. Nhập / Xuất & Di Trú Context",
+      "technical_level": "Low",
+      "question": "Tính năng chia sẻ hoặc sao lưu các cấu hình Context (`redis context export / import`) nên xử lý thế nào để bảo đảm an toàn bí mật?",
+      "feynman_analogy": "Giống như việc chia sẻ danh bạ điện thoại với đối tác: bạn có muốn vô tình chia sẻ luôn cả mật khẩu thẻ tín dụng và số PIN riêng tư ghi chú trong danh bạ hay không?",
+      "plain_english": "Cơ chế xuất cấu hình context: Mặc định làm sạch mật khẩu (Sanitize/Mask secrets thành placeholder `${REDIS_AUTH}`) và chỉ cho phép xuất kèm mật khẩu khi có cờ rõ ràng `--include-secrets`.",
+      "options": [
+        {
+          "id": "opt_2_7_1",
+          "title": "Xuất an toàn: Tự động che dấu mật khẩu (Sanitized by default) thành tham chiếu biến môi trường, yêu cầu cờ `--include-secrets` nếu muốn xuất thô",
+          "recommended": true,
+          "summary": "Lệnh `redis context export` tạo file YAML chuẩn có thể chia sẻ an toàn cho đồng đội hoặc đưa vào kho mã nguồn git mà không sợ rò rỉ bí mật.",
+          "feynman_analogy": "Tự động bôi đen các thông tin nhạy cảm trước khi công bố tài liệu ra công chúng, trừ khi có lệnh giải mật đặc biệt.",
+          "mechanics": "Khi duyệt qua các context để xuất ra file, trường Password và Token được chuyển đổi thành cú pháp tham chiếu `${CONTEXT_NAME_PASSWORD}` trừ khi cờ `--include-secrets` được bật rõ ràng.",
+          "pros": [
+            "Bảo đảm an toàn tuyệt đối, ngăn chặn lập trình viên hoặc Agent vô tình commit mật khẩu Redis production lên kho mã nguồn GitHub/GitLab.",
+            "Dễ dàng thiết lập môi trường mới cho đồng đội mới vào dự án: chỉ cần import context template và điền biến môi trường cục bộ.",
+            "Tạo sự chuyên nghiệp vượt bậc so với các công cụ CLI thông thường."
+          ],
+          "cons": [
+            "Cần thêm một bước cấu hình biến môi trường nếu người dùng import trên một máy hoàn toàn mới mà không kèm mật khẩu."
+          ],
+          "fit_when": "Môi trường làm việc theo nhóm, DevOps, hoặc các dự án mã nguồn mở có nhiều người đóng góp.",
+          "avoid_when": "Công cụ chỉ được dùng bởi một cá nhân duy nhất trên một chiếc máy tính cô lập."
+        },
+        {
+          "id": "opt_2_7_2",
+          "title": "Xuất nguyên bản toàn bộ mật khẩu dạng văn bản thô",
+          "recommended": false,
+          "summary": "Xuất toàn bộ file cấu hình nguyên vẹn bao gồm cả mật khẩu lưu trong file.",
+          "feynman_analogy": "In toàn bộ sao kê ngân hàng kèm số thẻ và mã CVV ra giấy rồi để trên bàn làm việc.",
+          "mechanics": "Đơn thuần sao chép tệp YAML sang đường dẫn đích.",
+          "pros": [
+            "Nhập vào máy khác là kết nối được ngay mà không cần cấu hình thêm biến môi trường."
+          ],
+          "cons": [
+            "Nguy cơ rò rỉ bảo mật nghiêm trọng nếu người dùng vô tình chia sẻ file export qua Slack, email hoặc commit lên Git."
+          ],
+          "fit_when": "Chỉ dùng nội bộ cá nhân khi di chuyển giữa hai máy tính tin cậy tuyệt đối.",
+          "avoid_when": "Tiêu chuẩn an toàn thông tin chuyên nghiệp."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,325 @@
+{
+  "lang": "vi",
+  "title": "Kiến Trúc Bộ Công Cụ Binary Redis CLI Đa Ngữ Cảnh (Multi-Context)",
+  "subtitle": "Phân Tích Đánh Đổi Kỹ Thuật & Mô Hình Tư Duy Feynman Cho CLI Quản Trị Redis Hiện Đại",
+  "project_context": "Xây dựng công cụ nhị phân độc lập hỗ trợ quản lý nhiều máy chủ Redis, chuyển đổi context mượt mà, lệnh trực quan và giao diện bảng màu sắc/TUI.",
+  "phases": [
+    {
+      "id": "gate_1",
+      "tab_title": "1. Ngôn Ngữ & Runtime",
+      "technical_level": "High",
+      "question": "Nên sử dụng ngôn ngữ và hệ sinh thái nào để xây dựng binary CLI?",
+      "feynman_analogy": "Giống như việc chọn loại xe đi phượt: bạn chọn một chiếc xe đa dụng khởi động tức thì, phụ tùng phong phú hay một cỗ máy đua F1 tối ưu từng mili-giây nhưng mất nhiều công bảo dưỡng?",
+      "plain_english": "Lựa chọn giữa Go (với Cobra, Lipgloss, go-redis) và Rust (với Clap, Ratatui, redis-rs) cho hiệu năng khởi động, tính đa nền tảng và hệ sinh thái TUI.",
+      "options": [
+        {
+          "id": "opt_1_1",
+          "title": "Go (Golang) với Cobra, Lipgloss, Bubble Tea & go-redis/v9",
+          "recommended": true,
+          "summary": "Biên dịch thành file thực thi duy nhất, tốc độ biên dịch cực nhanh và sở hữu hệ sinh thái CLI/TUI Charm phong phú nhất hiện nay.",
+          "feynman_analogy": "Chiếc xe bán tải chuyên dụng của thợ công trình: bền bỉ, khởi động ngay tức khắc, dễ mở rộng thùng xe và chở được mọi loại công cụ cần thiết.",
+          "mechanics": "Go biên dịch tĩnh thành một file binary duy nhất không phụ thuộc thư viện hệ thống ngoài. Sử dụng framework Cobra định tuyến subcommand, go-redis quản lý connection pool và Lipgloss định dạng bảng màu ANSI.",
+          "pros": [
+            "Thời gian biên dịch chỉ vài giây, hỗ trợ cross-compile ra mọi hệ điều hành (Linux, macOS, Windows) chỉ bằng biến môi trường GOOS và GOARCH.",
+            "Hệ sinh thái giao diện terminal của Charm (Lipgloss, Bubble Tea, Bubbles) là chuẩn mực vàng cho TUI hiện đại với bảng biểu, thanh tiến trình và màu sắc 24-bit TrueColor.",
+            "Thư viện go-redis có độ ổn định rất cao, hỗ trợ sẵn connection pooling, retry backoff, pipelining và tương thích hoàn toàn với Redis 6, 7 và RESP3."
+          ],
+          "cons": [
+            "Binary đầu ra có dung lượng khoảng 15 đến 25 megabyte do đóng gói kèm runtime và bộ gom rác Garbage Collector.",
+            "Mức tiêu thụ bộ nhớ RAM cơ sở khoảng 15 megabyte, cao hơn so với Rust thuần túy."
+          ],
+          "fit_when": "Cần phát triển nhanh, giao diện bảng biểu và TUI màu sắc đẹp mắt, mã nguồn dễ bảo trì và mở rộng.",
+          "avoid_when": "Môi trường vi điều khiển nhúng cực đoan chỉ có vài megabyte RAM."
+        },
+        {
+          "id": "opt_1_2",
+          "title": "Rust với Clap, Ratatui & redis-rs",
+          "recommended": false,
+          "summary": "Tối ưu hóa tối đa kích thước binary và không có bộ gom rác runtime, nhưng thời gian biên dịch lâu hơn đáng kể.",
+          "feynman_analogy": "Cỗ xe đua F1 khung carbon: nhẹ nhất, không một chi tiết thừa, nhưng cần đội ngũ kỹ thuật lành nghề tinh chỉnh từng khớp nối.",
+          "mechanics": "Rust biên dịch qua LLVM với zero-cost abstractions, quản lý bộ nhớ qua ownership/borrow checker, cho ra binary chỉ từ 3 đến 8 megabyte và mức chiếm dụng RAM cực thấp.",
+          "pros": [
+            "Kích thước file thực thi siêu nhỏ gọn và thời gian khởi động sub-mili-giây.",
+            "Bộ nhớ an toàn tuyệt đối tại thời điểm biên dịch, không có nguy cơ rò rỉ hay gián đoạn bởi Garbage Collector."
+          ],
+          "cons": [
+            "Thời gian biên dịch mã nguồn lần đầu rất chậm, kéo dài từ 2 đến 5 phút trên các máy trạm thông thường.",
+            "Độ phức tạp khi xử lý các trạng thái bất đồng bộ UI phức tạp đòi hỏi nhiều boilerplate code hơn đáng kể."
+          ],
+          "fit_when": "Yêu cầu tuyệt đối về binary siêu nhỏ dưới 5MB và mức chiếm RAM tối thiểu dưới 5MB.",
+          "avoid_when": "Ưu tiên tốc độ hoàn thiện tính năng và hệ sinh thái thư viện định dạng terminal UI linh hoạt."
+        }
+      ]
+    },
+    {
+      "id": "gate_2",
+      "tab_title": "2. Quản Lý Context",
+      "technical_level": "Medium",
+      "question": "Thông tin cấu hình context và thông tin đăng nhập nên được lưu trữ như thế nào?",
+      "feynman_analogy": "Giống như chùm chìa khóa phòng khách sạn: bạn dán nhãn ghi số phòng vào cuốn sổ tay cá nhân hay cất từng chìa vào hộp sắt có khóa mã số?",
+      "plain_english": "Quyết định phương thức lưu trữ file config đa kết nối (host, port, auth, TLS, active context) và mức độ bảo mật mật khẩu.",
+      "options": [
+        {
+          "id": "opt_2_1",
+          "title": "File cấu hình YAML cục bộ (~/.config/redictl/contexts.yaml) hỗ trợ nội suy biến môi trường",
+          "recommended": true,
+          "summary": "Lưu các context dạng văn bản rõ ràng với phân quyền tập tin an toàn (chmod 0600), cho phép tham chiếu bí mật qua biến môi trường dạng ${REDIS_PASS}.",
+          "feynman_analogy": "Cuốn sổ ghi nhớ trong túi áo riêng có cài khuy: chỉ chủ nhân được mở xem, những thông tin nhạy cảm được thay bằng mật mã tham chiếu ngoài.",
+          "mechanics": "Ứng dụng tự động khởi tạo thư mục chuẩn XDG (~/.config/redictl) với quyền đọc ghi duy nhất cho người dùng hiện tại. Khi nạp cấu hình, trình phân tích cú pháp quét các biến môi trường để thế chỗ các chuỗi mật khẩu.",
+          "pros": [
+            "Trải nghiệm nhà phát triển cực kỳ thân thiện, dễ dàng sao chép, chỉnh sửa thủ công hoặc chia sẻ cấu hình mẫu mà không lộ mật khẩu.",
+            "Hoạt động đồng nhất trên mọi môi trường từ máy trạm cá nhân, container Docker đến các phiên làm việc SSH từ xa mà không phụ thuộc D-Bus hay desktop service.",
+            "Hỗ trợ phân quyền tệp tin POSIX nghiêm ngặt giúp bảo vệ trước các tiến trình khác trên cùng hệ thống."
+          ],
+          "cons": [
+            "Nếu người dùng vô tình đặt mật khẩu dạng văn bản thô mà không dùng biến môi trường và cấp quyền tệp lỏng lẻo, thông tin có thể bị rò rỉ cục bộ."
+          ],
+          "fit_when": "Môi trường phát triển hàng ngày của kỹ sư phần mềm, cần thao tác nhanh và tương thích với cả máy chủ headless.",
+          "avoid_when": "Hệ thống bảo mật doanh nghiệp yêu cầu bắt buộc tích hợp phần cứng TPM hoặc Secure Enclave."
+        },
+        {
+          "id": "opt_2_2",
+          "title": "Mã hóa toàn bộ mật khẩu qua OS Keyring (SecretService / macOS Keychain)",
+          "recommended": false,
+          "summary": "Lưu metadata trong file YAML còn mật khẩu xác thực được gửi vào kho khóa của hệ điều hành.",
+          "feynman_analogy": "Gửi chìa khóa vào két sắt của khách sạn: an toàn nhất nhưng mỗi lần lấy chìa phải xuất trình giấy tờ tùy thân.",
+          "mechanics": "Sử dụng thư viện giao tiếp với org.freedesktop.secrets trên Linux hoặc Keychain trên macOS để mã hóa và giải mã thông tin nhạy cảm theo phiên làm việc.",
+          "pros": [
+            "Bảo mật tuyệt đối, chống lại việc trích xuất mật khẩu từ file tĩnh trên ổ đĩa."
+          ],
+          "cons": [
+            "Thường xuyên phát sinh lỗi kết nối D-Bus khi chạy trong terminal không có giao diện đồ họa, phiên SSH hoặc container Docker.",
+            "Cần cài đặt thêm các gói thư viện phụ thuộc cấp hệ điều hành (libsecret)."
+          ],
+          "fit_when": "Môi trường máy trạm đồ họa cá nhân có chính sách bảo mật doanh nghiệp nghiêm ngặt.",
+          "avoid_when": "Chạy trên server Linux headless, VPS hoặc môi trường dòng lệnh không có GUI session."
+        }
+      ]
+    },
+    {
+      "id": "gate_3",
+      "tab_title": "3. Cơ Chế Quét Key",
+      "technical_level": "High",
+      "question": "Lệnh duyệt và hiển thị danh sách key (`redis show`) nên truy vấn dữ liệu từ Redis engine như thế nào?",
+      "feynman_analogy": "Giống như việc kiểm kê kho hàng khổng lồ: bạn bắt nhân viên dừng toàn bộ việc bán hàng để đếm một lượt, hay cử một kiểm kho đi từng dãy kệ lấy mẫu dần dần?",
+      "plain_english": "Lựa chọn giữa lệnh SCAN theo con trỏ an toàn hay KEYS * truyền thống để tránh làm treo Redis production đơn luồng.",
+      "options": [
+        {
+          "id": "opt_3_1",
+          "title": "Duyệt an toàn bằng lệnh SCAN theo Cursor kết hợp Pipeline lấy Metadata (Type, TTL, Memory)",
+          "recommended": true,
+          "summary": "Sử dụng con trỏ SCAN từng lô (batching 100-500 keys), sau đó dùng Redis Pipeline truy vấn đồng thời kiểu dữ liệu và thời gian sống mà không chặn luồng chính.",
+          "feynman_analogy": "Nhân viên kiểm kho đi từng dãy kệ, ghi lại 50 món đồ rồi chuyển tiếp cho đồng nghiệp đóng gói, khách hàng vẫn mua bán bình thường.",
+          "mechanics": "Gửi lệnh SCAN với cursor hiện tại kèm pattern tìm kiếm. Khi nhận danh sách key của lô, mở một Redis Pipeline gửi hàng loạt lệnh TYPE, TTL và MEMORY USAGE, sau đó gộp kết quả trả về giao diện phân trang.",
+          "pros": [
+            "An toàn 100% cho các cụm Redis môi trường Production có hàng triệu key, hoàn toàn không gây tắc nghẽn luồng xử lý đơn của Redis.",
+            "Hỗ trợ phân trang mượt mà theo từng trang (`--page=1 --limit=50`) với tốc độ phản hồi tính bằng mili-giây.",
+            "Cung cấp đầy đủ thông tin hữu ích trong một lần hiển thị: Tên Key, Kiểu dữ liệu (String/Hash/Set), TTL còn lại và dung lượng ước tính."
+          ],
+          "cons": [
+            "Do đặc tính phân tán của SCAN, tổng số key trả về trên mỗi bước quét có thể chênh lệch nhẹ so với tham số COUNT đưa vào."
+          ],
+          "fit_when": "Mọi môi trường làm việc từ máy phát triển cục bộ đến cụm Redis dữ liệu lớn trên đám mây.",
+          "avoid_when": "Không có lý do để tránh cách tiếp cận chuẩn mực này."
+        },
+        {
+          "id": "opt_3_2",
+          "title": "Sử dụng lệnh KEYS * lấy toàn bộ dữ liệu một lần",
+          "recommended": false,
+          "summary": "Gửi lệnh KEYS trực tiếp để lấy danh sách phẳng tất cả các key cùng một lúc.",
+          "feynman_analogy": "Rung chuông báo động bắt toàn bộ siêu thị đứng yên để đếm từng món hàng trên quầy.",
+          "mechanics": "Gửi lệnh KEYS pattern đơn lẻ, Redis dừng toàn bộ các tác vụ đọc ghi khác cho đến khi duyệt hết toàn bộ keyspace trong bộ nhớ.",
+          "pros": [
+            "Logic mã nguồn rất đơn giản, dễ tính toán chính xác tuyệt đối tổng số key ngay lập tức."
+          ],
+          "cons": [
+            "Cực kỳ nguy hiểm: làm treo đứng hoàn toàn máy chủ Redis nếu cơ sở dữ liệu có trên 50,000 key, gây sập dịch vụ kết nối.",
+            "Tài liệu chính thức của Redis nghiêm cấm sử dụng KEYS trên môi trường sản phẩm thực tế."
+          ],
+          "fit_when": "Chỉ áp dụng khi cơ sở dữ liệu thử nghiệm có dưới 100 key cục bộ.",
+          "avoid_when": "Bất kỳ hệ thống Redis nào đang phục vụ lưu lượng người dùng thực."
+        }
+      ]
+    },
+    {
+      "id": "gate_4",
+      "tab_title": "4. Chế Độ Hiển Thị",
+      "technical_level": "Medium",
+      "question": "Công cụ nên hỗ trợ chế độ xuất dữ liệu CLI bảng tĩnh hay giao diện TUI tương tác toàn màn hình?",
+      "feynman_analogy": "Giống như bảng thông tin chuyến bay tại sân bay: bạn muốn một màn hình cố định tra cứu nhanh để in vé, hay một màn hình cảm ứng tương tác để bấm chọn xem chi tiết từng chuyến?",
+      "plain_english": "Thiết kế kiến trúc hiển thị: CLI command hướng cờ scriptable (hỗ trợ pipe grep, jq) kết hợp chế độ TUI tương tác (interactive browser).",
+      "options": [
+        {
+          "id": "opt_4_1",
+          "title": "Kiến trúc Dual-Mode: CLI Scriptable (Table/JSON/YAML) mặc định + Subcommand TUI tương tác (`redis explore`)",
+          "recommended": true,
+          "summary": "Mặc định in bảng màu sắc định dạng đẹp kèm hỗ trợ phân trang cho CLI, đồng thời cung cấp chế độ giao diện tương tác toàn màn hình khi cần duyệt sâu dữ liệu.",
+          "feynman_analogy": "Vừa có bảng đồng hồ hiển thị số liệu tức thời cho phi công, vừa có màn hình điều khiển cảm ứng đa năng khi muốn tinh chỉnh lộ trình bay.",
+          "mechanics": "Các lệnh thông thường (`redis show --format=table/json`) xuất trực tiếp ra stdout kèm màu sắc ANSI (tự động tắt màu khi pipe sang file hoặc grep). Khi chạy `redis explore` hoặc `redis ui`, ứng dụng kích hoạt Bubble Tea chiếm màn hình terminal.",
+          "pros": [
+            "Thỏa mãn hoàn hảo cả hai nhu cầu: tra cứu nhanh tức thì trong script bash/CI/CD và trải nghiệm khám phá dữ liệu trực quan bằng bàn phím (mũi tên, phím tắt vim).",
+            "Tự động phát hiện terminal tty: giữ màu sắc sống động khi người dùng nhìn trực tiếp và chuyển sang plain text khi redirect sang ống lệnh pipe.",
+            "Khả năng mở rộng không giới hạn mà không làm phình to độ trễ của các lệnh tra cứu đơn lẻ."
+          ],
+          "cons": [
+            "Cần xây dựng và kiểm thử hai luồng hiển thị riêng biệt: bộ tạo bảng Lipgloss và ứng dụng trạng thái Bubble Tea."
+          ],
+          "fit_when": "Mong muốn xây dựng một công cụ CLI chuyên nghiệp đẳng cấp, phục vụ từ tác vụ tự động hóa đến khám phá dữ liệu trực quan.",
+          "avoid_when": "Chỉ muốn một đoạn mã script đơn giản dưới 200 dòng."
+        },
+        {
+          "id": "opt_4_2",
+          "title": "Chỉ hỗ trợ CLI tĩnh (Static Formatted Table / JSON)",
+          "recommended": false,
+          "summary": "Chỉ tập trung vào bảng đầu ra màu sắc với các cờ định dạng, không có giao diện tương tác toàn màn hình.",
+          "feynman_analogy": "Máy in hóa đơn nhiệt: in ra giấy rõ ràng nhưng không thể nhấn nút tương tác trên tờ giấy đã in.",
+          "mechanics": "Mọi lệnh chỉ đơn thuần đọc dữ liệu, format thành bảng hoặc JSON rồi kết thúc tiến trình trả về mã thoát exit code.",
+          "pros": [
+            "Kiến trúc mã nguồn cực kỳ tinh gọn, không phải xử lý vòng lặp sự kiện phím bấm phức tạp.",
+            "Tốc độ thực thi tối đa, chạy xong là kết thúc ngay lập tức."
+          ],
+          "cons": [
+            "Khi muốn xem chi tiết giá trị của một Hash hay List dài, người dùng phải gõ thêm nhiều câu lệnh thủ công thay vì dùng phím mũi tên duyệt nhanh."
+          ],
+          "fit_when": "Mục tiêu chỉ là thay thế redis-cli cơ bản trong các đường ống lệnh DevOps.",
+          "avoid_when": "Người dùng mong muốn có trải nghiệm GUI/TUI hiện đại ngay trong terminal."
+        }
+      ]
+    },
+    {
+      "id": "gate_5",
+      "tab_title": "5. Xử Lý Kiểu Dữ Liệu",
+      "technical_level": "Medium",
+      "question": "Khi xem chi tiết giá trị key (`redis inspect <key>`), công cụ nên định dạng và giải mã nội dung như thế nào?",
+      "feynman_analogy": "Giống như việc mở một kiện hàng bí ẩn: bạn bóc hộp và kiểm tra xem đó là bức thư chữ rõ ràng, tài liệu JSON định dạng sẵn, hay khối linh kiện máy móc cần kính lúp soi vi mạch?",
+      "plain_english": "Cơ chế tự động phát hiện định dạng (JSON highlight, String, Binary Hex-dump) và hiển thị phù hợp với từng kiểu dữ liệu Redis (Hash, List, Set, Stream).",
+      "options": [
+        {
+          "id": "opt_5_1",
+          "title": "Bộ giải mã thích ứng: Tự động format JSON với highlight màu + Hex-dump cho binary + Bảng trường con cho Hash/List",
+          "recommended": true,
+          "summary": "Tự động phát hiện nếu chuỗi ký tự là JSON hợp lệ để format thụt lề và tô màu cú pháp; nếu là nhị phân thì hiển thị dạng Hex; Hash hiển thị dạng bảng Key-Value lồng nhau.",
+          "feynman_analogy": "Kính vạn hoa thông minh: tự động điều chỉnh tiêu cự và màu sắc tùy theo vật thể đặt trước ống kính.",
+          "mechanics": "Sau khi nhận byte payload từ Redis, hàm kiểm tra thử unmarshal JSON. Nếu thành công, chuyển qua Chroma / Lipgloss highlighter. Nếu payload chứa ký tự non-printable, chuyển sang view hex-dump 16 cột.",
+          "pros": [
+            "Trải nghiệm đọc dữ liệu vượt trội: không còn tình trạng JSON bị nén một dòng dài ngoằng làm vỡ khung terminal.",
+            "Hiển thị trực quan cấu trúc của các kiểu dữ liệu phức tạp như Hash (bảng trường/giá trị) và Stream (dòng thời gian ID/entry).",
+            "An toàn tuyệt đối, không gây lỗi treo font hoặc hỏng ký tự điều khiển terminal khi gặp dữ liệu nhị phân (như gzip hoặc msgpack)."
+          ],
+          "cons": [
+            "Tốn thêm vài micro-giây CPU để kiểm tra và định dạng payload trước khi render ra màn hình."
+          ],
+          "fit_when": "Thường xuyên làm việc với microservices lưu trữ JSON payload, caching session hoặc dữ liệu nhị phân trong Redis.",
+          "avoid_when": "Chỉ lưu trữ các số nguyên hoặc chuỗi ngắn đơn giản."
+        },
+        {
+          "id": "opt_5_2",
+          "title": "Hiển thị chuỗi thô (Raw String Dump)",
+          "recommended": false,
+          "summary": "In trực tiếp giá trị nhận được từ Redis ra màn hình mà không qua bất kỳ bước xử lý hay định dạng nào.",
+          "feynman_analogy": "Đổ thẳng cả thùng hàng ra sàn nhà: cái gì ở trong thì tràn ra ngoài y như vậy.",
+          "mechanics": "Đọc mảng byte và in thẳng ra stdout bằng Println thông thường.",
+          "pros": [
+            "Không tốn chi phí xử lý CPU, phản hồi tức thời."
+          ],
+          "cons": [
+            "Khó đọc khi giá trị là chuỗi JSON lớn bị nén.",
+            "Dữ liệu nhị phân có thể làm hỏng trạng thái hiển thị của terminal do các ký tự điều khiển ANSI ngẫu nhiên."
+          ],
+          "fit_when": "Tối ưu hóa cực hạn cho việc chuyển hướng luồng dữ liệu sang công cụ khác.",
+          "avoid_when": "Mục tiêu là phục vụ con người đọc và tra cứu trực tiếp trên terminal."
+        }
+      ]
+    },
+    {
+      "id": "gate_6",
+      "tab_title": "6. Topology & Kết Nối",
+      "technical_level": "Medium",
+      "question": "Kiến trúc kết nối Redis nên hỗ trợ những mô hình mạng nào trong giai đoạn đầu?",
+      "feynman_analogy": "Giống như hệ thống đường ray: bạn thiết kế đường tàu đơn trạm, đường tàu cao tốc liên tỉnh có bảo vệ, hay mạng lưới tàu điện ngầm tự động chuyển ray phức tạp?",
+      "plain_english": "Xác định phạm vi hỗ trợ các kiến trúc Redis: Standalone thông thường, Redis có xác thực mật khẩu/ACL, TLS/mTLS, và cụm Redis Cluster / Sentinel.",
+      "options": [
+        {
+          "id": "opt_6_1",
+          "title": "Hỗ trợ Standalone + DB Index (0-15) + Auth/ACL + TLS mTLS mã hóa đường truyền",
+          "recommended": true,
+          "summary": "Tập trung toàn diện vào mô hình nút đơn độc lập (bao gồm Docker cục bộ, AWS ElastiCache, Upstash, Redis Cloud) với đầy đủ mã hóa TLS và cơ chế chọn cơ sở dữ liệu số.",
+          "feynman_analogy": "Tuyến đường cao tốc hoàn chỉnh với trạm thu phí hiện đại và camera giám sát an ninh: phục vụ 95% nhu cầu di chuyển hàng ngày.",
+          "mechanics": "Context lưu trữ Host, Port, Database ID (mặc định 0), Username, Password, và cấu hình chứng chỉ TLS (CA, Cert, Key, InsecureSkipVerify). Trình khởi tạo kết nối tự động thiết lập TLS handshake khi được bật cờ.",
+          "pros": [
+            "Bao phủ hoàn toàn 95% trường hợp sử dụng thực tế của lập trình viên và môi trường cloud phổ biến (như Upstash, Aiven, Redis Cloud).",
+            "Kiến trúc kết nối tinh gọn, thời gian chuyển đổi context cực nhanh và mã nguồn rất ổn định.",
+            "Dễ dàng kiểm thử tự động với các container Redis chạy qua Docker (như capstone-redis-common và capstone-redis-realtime đang chạy)."
+          ],
+          "cons": [
+            "Chưa tự động phân luồng theo dõi chuyển hướng MOVED/ASK trên Redis Cluster đa master (sẽ đưa vào Phase mở rộng sau)."
+          ],
+          "fit_when": "Xây dựng nền tảng vững chắc, chất lượng cao, phục vụ ngay lập tức cho công việc hàng ngày.",
+          "avoid_when": "Bắt buộc phải quản trị cụm Redis Cluster 100+ sharded nodes ngay trong ngày đầu tiên."
+        },
+        {
+          "id": "opt_6_2",
+          "title": "Hỗ trợ đồng thời cả Redis Cluster Sharding và Sentinel Auto-Failover ngay từ đầu",
+          "recommended": false,
+          "summary": "Tích hợp sẵn logic phát hiện topology cụm phân tán và theo dõi nút master thông qua Sentinel.",
+          "feynman_analogy": "Xây dựng đồng thời mạng lưới tàu điện ngầm đa tuyến nối ngầm qua nhiều thành phố ngay trong dự án đầu tiên.",
+          "mechanics": "Khởi tạo ClusterClient với khả năng định tuyến slot băm tự động và lắng nghe kênh pub/sub của Sentinel để chuyển đổi IP động.",
+          "pros": [
+            "Hỗ trợ các hệ thống Redis quy mô doanh nghiệp lớn phân mảnh sharding ngay lập tức."
+          ],
+          "cons": [
+            "Làm tăng đáng kể độ phức tạp của logic context: nhiều câu lệnh cơ bản (như SCAN trên cluster, chuyển đổi DB số) có hành vi khác biệt trên Cluster.",
+            "Tốn nhiều thời gian thiết lập môi trường giả lập kiểm thử tự động đa container."
+          ],
+          "fit_when": "Hệ thống hạ tầng mục tiêu duy nhất là Redis Cluster đa node phân mảnh.",
+          "avoid_when": "Ưu tiên phát triển nhanh công cụ CLI thân thiện cho các dự án và môi trường cloud thông dụng."
+        }
+      ]
+    },
+    {
+      "id": "gate_7",
+      "tab_title": "7. Tên Binary & Alias",
+      "technical_level": "Low",
+      "question": "Nên đặt tên cho file thực thi binary là gì để tránh xung đột với các gói cài đặt Redis chính thức?",
+      "feynman_analogy": "Giống như việc đặt tên cho một thương hiệu mới: bạn lấy trùng tên với một thương hiệu lâu năm đã có sẵn trên phố, hay tạo một cái tên riêng ấn tượng kèm biển chỉ dẫn phụ?",
+      "plain_english": "Lựa chọn tên nhị phân độc lập (`redictl`, `redix` hoặc `redis-cli-tool`) kèm hỗ trợ tạo shell alias, tránh ghi đè lên binary `redis-cli` của hệ thống.",
+      "options": [
+        {
+          "id": "opt_7_1",
+          "title": "`redictl` (hoặc `redix`) là binary chính thức, kèm lệnh `redictl alias` tự động thiết lập `alias redis=redictl`",
+          "recommended": true,
+          "summary": "Đặt tên nhị phân rõ ràng, không gây xung đột PATH hệ thống, đồng thời cung cấp tùy chọn cho người dùng muốn gõ ngắn gọn `redis` hàng ngày.",
+          "feynman_analogy": "Tên khai sinh rõ ràng trong hộ chiếu, nhưng cho phép đặt biệt danh thân thuộc để bạn bè gọi hàng ngày.",
+          "mechanics": "File binary được biên dịch với tên `redictl` đặt trong PATH (như /usr/local/bin hoặc ~/.local/bin). Lệnh `redictl alias install` tự động thêm một dòng `alias redis=\"redictl\"` vào ~/.bashrc hoặc ~/.zshrc.",
+          "pros": [
+            "Không bao giờ lo ngại việc xung đột hay ghi đè lên `redis-cli` chuẩn nếu người dùng sau này cài đặt gói redis-tools từ apt/pacman.",
+            "Tên gọi ngắn gọn, hiện đại và chuẩn mực theo quy ước các công cụ quản trị (như `docker`, `kubectl`, `systemctl`).",
+            "Người dùng vẫn có thể gõ `redis context ls` hoặc `redis show` một cách tự nhiên đúng như mong muốn ban đầu."
+          ],
+          "cons": [
+            "Cần một bước nhỏ thiết lập alias nếu người dùng muốn gõ trực tiếp chữ `redis` thay vì `redictl`."
+          ],
+          "fit_when": "Cách tiếp cận chuẩn mực cho mọi công cụ mã nguồn mở và hệ sinh thái CLI hiện đại.",
+          "avoid_when": "Người dùng kiên quyết chỉ muốn file binary thực tế trên đĩa cứng bắt buộc phải mang tên đúng 5 ký tự `redis`."
+        },
+        {
+          "id": "opt_7_2",
+          "title": "Đặt tên binary trực tiếp là `redis`",
+          "recommended": false,
+          "summary": "Tạo file thực thi với tên chính xác là `redis` và đặt vào thư mục PATH.",
+          "feynman_analogy": "Thay biển hiệu của cửa hàng bằng tên một thương hiệu lớn khác mà không có bảo hộ.",
+          "mechanics": "Biên dịch nhị phân trực tiếp ra file có tên `redis`.",
+          "pros": [
+            "Người dùng có thể gõ ngay `redis context` mà không cần bất kỳ bước cấu hình alias nào."
+          ],
+          "cons": [
+            "Gây nhầm lẫn lớn với binary khởi động máy chủ Redis (`redis-server` đôi khi được đóng gói kèm các script tiện ích tên redis).",
+            "Có thể bị xung đột hoặc ghi đè nếu cài đặt thêm các gói redis-tools từ kho ứng dụng của Linux."
+          ],
+          "fit_when": "Máy trạm hoàn toàn không và sẽ không bao giờ cài đặt redis package chính thức.",
+          "avoid_when": "Hệ thống phát triển chuẩn cần tính tương thích và an toàn lâu dài."
+        }
+      ]
+    }
+  ]
+}
