@@ -1,7 +1,7 @@
 ---
 phase: 6
 title: "Interactive Full-Screen TUI"
-status: pending
+status: completed
 priority: P2
 effort: "2.5h"
 dependencies:
@@ -80,9 +80,9 @@ Bubble Tea Event Loop (pkg/tui/model.go)
 - **Expected Output**: Exit code 5 with non-TTY error message.
 
 ## Success Criteria
-- [ ] `redis explore` launches in alternate screen buffer without visual artifacts on TTY.
-- [ ] Arrow keys and vim keys (`j`/`k`) navigate through keys smoothly.
-- [ ] Non-TTY execution (`</dev/null`) exits cleanly with code 5 and does not crash or hang.
+- [x] `redis explore` launches in alternate screen buffer without visual artifacts on TTY.
+- [x] Arrow keys and vim keys (`j`/`k`) navigate through keys smoothly.
+- [x] Non-TTY execution (`</dev/null`) exits cleanly with code 5 and does not crash or hang.
 
 ## Risk Assessment
 - **Risk**: Terminal window too small causing panic on bounds calculations.

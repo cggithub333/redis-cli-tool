@@ -42,7 +42,7 @@ A high-performance, single-binary CLI tool written in Go that delivers Docker/Ku
 | **03** | [Context Subcommands & Table Formatter](phase-03-context-commands.md) | 2h | `completed` | `redis context (ls, use, create, delete, current, export, import)`, `pkg/format/table.go`, non-TTY safety warning |
 | **04** | [Key Exploration & Adaptive Decoder](phase-04-key-browser-inspect.md) | 2.5h | `completed` | `redis show/inspect/get/set`, safe iterators (HSCAN/LRANGE), auto-JSON highlight, hex-dump, 256KB cap |
 | **05** | [Agent DX & Safety Guardrails](phase-05-agent-dx-safety-guardrails.md) | 2h | `completed` | `--json --compact`, `--fields`, `redis summary`, typed `SafetyError` (0-5), chunked UNLINK, clean stdout |
-| **06** | [Interactive Full-Screen TUI](phase-06-interactive-tui-explore.md) | 2.5h | `pending` | `redis explore` powered by Bubble Tea & Lipgloss with keyboard navigation & non-TTY guardrail |
+| **06** | [Interactive Full-Screen TUI](phase-06-interactive-tui-explore.md) | 2.5h | `completed` | `redis explore` powered by Bubble Tea & Lipgloss with keyboard navigation & non-TTY guardrail |
 | **07** | [Python XDG Integration & Review Board](phase-07-review-board-audit.md) | 1.5h | `pending` | Python `tests/test_cli_xdg.py` sandbox suite, Docker log hygiene, Review Board quality audit |
 
 ---

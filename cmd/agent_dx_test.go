@@ -156,3 +156,19 @@ func TestAgentDX_DelGuardrails(t *testing.T) {
 		t.Fatalf("expected successful unlink message, got: %s", buf.String())
 	}
 }
+
+func TestTUI_NonTTYRejection(t *testing.T) {
+	ResetFlags()
+	rootCmd.SetArgs([]string{"explore"})
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatal("expected non-TTY error from explore command")
+	}
+	safetyErr, ok := err.(*safety.SafetyError)
+	if !ok || safetyErr.Code != safety.ExitSyntaxError {
+		t.Fatalf("expected SafetyError with code 5, got %v", err)
+	}
+	if !strings.Contains(safetyErr.Message, "interactive TTY") {
+		t.Fatalf("unexpected message: %s", safetyErr.Message)
+	}
+}
