@@ -37,7 +37,7 @@ A high-performance, single-binary CLI tool written in Go that delivers Docker/Ku
 
 | Phase | Title | Effort | Status | Key Deliverable |
 | :---: | :--- | :---: | :---: | :--- |
-| **01** | [Core Scaffolding & Context Store](phase-01-core-scaffolding-config.md) | 2h | `pending` | Go module, Cobra root, 3-tier resolver, 0600 YAML store, atomic writes, flock, env expansion |
+| **01** | [Core Scaffolding & Context Store](phase-01-core-scaffolding-config.md) | 2h | `completed` | Go module, Cobra root, 3-tier resolver, 0600 YAML store, atomic writes, flock, env expansion |
 | **02** | [Client Engine & Non-Blocking SCAN](phase-02-client-engine-scan.md) | 2h | `pending` | `go-redis` pool, embedded client, TLS, ping, chunked SCAN cursor batching + metadata pipelines |
 | **03** | [Context Subcommands & Table Formatter](phase-03-context-commands.md) | 2h | `pending` | `redis context (ls, use, create, delete, current, export, import)`, `pkg/format/table.go`, non-TTY safety warning |
 | **04** | [Key Exploration & Adaptive Decoder](phase-04-key-browser-inspect.md) | 2.5h | `pending` | `redis show/inspect/get/set`, safe iterators (HSCAN/LRANGE), auto-JSON highlight, hex-dump, 256KB cap |

@@ -1,0 +1,41 @@
+package cmd
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+)
+
+var (
+	contextFlag string
+	formatFlag  string
+	jsonFlag    bool
+	compactFlag bool
+	fieldsFlag  string
+	forceFlag   bool
+	timeoutFlag int
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "redis",
+	Short: "Redis CLI Tool",
+	Long:  `A modern Redis CLI tool with multi-context support.`,
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.PersistentFlags().StringVar(&contextFlag, "context", "", "Context to use (overrides current-context)")
+	rootCmd.PersistentFlags().StringVar(&formatFlag, "format", "table", "Output format (table, json, yaml)")
+	rootCmd.PersistentFlags().BoolVar(&jsonFlag, "json", false, "Output in JSON format (shortcut for --format=json)")
+	rootCmd.PersistentFlags().BoolVar(&compactFlag, "compact", false, "Compact output (no color/formatting)")
+	rootCmd.PersistentFlags().StringVar(&fieldsFlag, "fields", "", "Comma-separated list of fields to display")
+	rootCmd.PersistentFlags().BoolVar(&forceFlag, "force", false, "Force operation without prompt")
+	rootCmd.PersistentFlags().IntVar(&timeoutFlag, "timeout", 10, "Command timeout in seconds")
+}

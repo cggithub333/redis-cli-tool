@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Core Scaffolding & Context Store"
-status: pending
+status: completed
 priority: P1
 effort: "2h"
 dependencies: []
@@ -92,10 +92,10 @@ pkg/config/store.go:
 - **Expected Output**: Displays complete help menu with description and flags.
 
 ## Success Criteria
-- [ ] `go.mod` and `go.sum` contain all 7 core packages.
-- [ ] Context store creates and atomically writes `contexts.yaml` with 0600 permissions.
-- [ ] 3-tier resolver passes all test cases (flag, env, yaml).
-- [ ] `redis --help` runs and outputs usage instructions.
+- [x] `go.mod` and `go.sum` contain all 7 core packages.
+- [x] Context store creates and atomically writes `contexts.yaml` with 0600 permissions.
+- [x] 3-tier resolver passes all test cases (flag, env, yaml).
+- [x] `redis --help` runs and outputs usage instructions.
 
 ## Risk Assessment
 - **Risk**: Interrupted file write corrupts configuration.
