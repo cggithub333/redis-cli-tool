@@ -42,7 +42,7 @@ func Execute() {
 	}
 }
 
-// ResetFlags restores default flag values (useful for tests)
+// ResetFlags restores default flag values across all commands (useful for tests)
 func ResetFlags() {
 	contextFlag = ""
 	formatFlag = "table"
@@ -51,7 +51,24 @@ func ResetFlags() {
 	fieldsFlag = ""
 	forceFlag = false
 	timeoutFlag = 10
+
+	showPatternFlag = "*"
+	showCursorFlag = 0
+	showLimitFlag = 50
+	showPageFlag = 1
+
 	dryRunFlag = false
+	inspectFullFlag = false
+	getFullFlag = false
+	setTTLFlag = 0
+
+	createHostFlag = "127.0.0.1"
+	createPortFlag = 6379
+	createDBFlag = 0
+	createUsernameFlag = ""
+	createPasswordFlag = ""
+	createTLSFlag = false
+	exportSecretsFlag = false
 }
 
 func init() {
