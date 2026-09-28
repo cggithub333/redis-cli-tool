@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Key Exploration & Adaptive Decoder"
-status: pending
+status: completed
 priority: P1
 effort: "2.5h"
 dependencies: ["phase-02-client-engine-scan.md", "phase-03-context-commands.md"]
@@ -69,9 +69,9 @@ pkg/format/decoder.go:
 - **Expected Output**: Displays colorful table of keys from active Redis instance.
 
 ## Success Criteria
-- [ ] `redis show --format=table` renders key name, type, TTL, and memory usage against seeded test keys.
-- [ ] `redis inspect <key>` on a JSON key displays pretty-printed syntax highlighted output.
-- [ ] Large collections use bounded iterators capped at 100 items without memory bloat.
+- [x] `redis show --format=table` renders key name, type, TTL, and memory usage against seeded test keys.
+- [x] `redis inspect <key>` on a JSON key displays pretty-printed syntax highlighted output.
+- [x] Large collections use bounded iterators capped at 100 items without memory bloat.
 
 ## Risk Assessment
 - **Risk**: Massive hash with 5 million fields crashing CLI during inspect.

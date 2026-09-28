@@ -40,7 +40,7 @@ A high-performance, single-binary CLI tool written in Go that delivers Docker/Ku
 | **01** | [Core Scaffolding & Context Store](phase-01-core-scaffolding-config.md) | 2h | `completed` | Go module, Cobra root, 3-tier resolver, 0600 YAML store, atomic writes, flock, env expansion |
 | **02** | [Client Engine & Non-Blocking SCAN](phase-02-client-engine-scan.md) | 2h | `completed` | `go-redis` pool, embedded client, TLS, ping, chunked SCAN cursor batching + metadata pipelines |
 | **03** | [Context Subcommands & Table Formatter](phase-03-context-commands.md) | 2h | `completed` | `redis context (ls, use, create, delete, current, export, import)`, `pkg/format/table.go`, non-TTY safety warning |
-| **04** | [Key Exploration & Adaptive Decoder](phase-04-key-browser-inspect.md) | 2.5h | `pending` | `redis show/inspect/get/set`, safe iterators (HSCAN/LRANGE), auto-JSON highlight, hex-dump, 256KB cap |
+| **04** | [Key Exploration & Adaptive Decoder](phase-04-key-browser-inspect.md) | 2.5h | `completed` | `redis show/inspect/get/set`, safe iterators (HSCAN/LRANGE), auto-JSON highlight, hex-dump, 256KB cap |
 | **05** | [Agent DX & Safety Guardrails](phase-05-agent-dx-safety-guardrails.md) | 2h | `pending` | `--json --compact`, `--fields`, `redis summary`, typed `SafetyError` (0-5), chunked UNLINK, clean stdout |
 | **06** | [Interactive Full-Screen TUI](phase-06-interactive-tui-explore.md) | 2.5h | `pending` | `redis explore` powered by Bubble Tea & Lipgloss with keyboard navigation & non-TTY guardrail |
 | **07** | [Python XDG Integration & Review Board](phase-07-review-board-audit.md) | 1.5h | `pending` | Python `tests/test_cli_xdg.py` sandbox suite, Docker log hygiene, Review Board quality audit |
