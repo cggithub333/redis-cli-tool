@@ -42,8 +42,16 @@ func NewClient(cfg *config.Context) (*Client, error) {
 	}, nil
 }
 
-// Ping measures latency to the Redis server.
+// Ping measures true round-trip latency to the Redis server over an established connection.
+// It performs a warmup ping first (which handles cold TCP dial, TLS handshake, and AUTH),
+// then precisely measures the subsequent Redis command response round-trip time.
 func (c *Client) Ping(ctx context.Context) (time.Duration, error) {
+	// First ping triggers lazy dial, TLS handshake, and Redis AUTH
+	if err := c.Client.Ping(ctx).Err(); err != nil {
+		return 0, err
+	}
+
+	// Second ping measures true Redis command round-trip latency over the warm socket
 	start := time.Now()
 	if err := c.Client.Ping(ctx).Err(); err != nil {
 		return 0, err
