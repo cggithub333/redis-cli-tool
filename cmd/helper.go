@@ -2,6 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"io"
+	"os"
+
+	"github.com/mattn/go-isatty"
+	"github.com/spf13/cobra"
 
 	"redis-cli-tool/pkg/client"
 	"redis-cli-tool/pkg/config"
@@ -32,4 +37,22 @@ func getActiveClient() (*client.Client, config.Context, error) {
 // formatBytes delegates to the canonical format.FormatBytes implementation
 func formatBytes(bytes int64) string {
 	return format.FormatBytes(bytes)
+}
+
+// isWriterTerminal checks if the writer points to an interactive terminal
+func isWriterTerminal(w io.Writer) bool {
+	if f, ok := w.(*os.File); ok {
+		return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+	}
+	return false
+}
+
+// emitJSON writes JSON to the output stream, colorizing with lipgloss if stdout is a TTY and not compact
+func emitJSON(cmd *cobra.Command, rawJSON string) {
+	w := cmd.OutOrStdout()
+	if !compactFlag && isWriterTerminal(w) {
+		fmt.Fprintln(w, format.ColorizeJSON(rawJSON))
+	} else {
+		fmt.Fprintln(w, rawJSON)
+	}
 }

@@ -29,6 +29,8 @@ var (
 	createPasswordFlag string
 	createTLSFlag      bool
 	createURIFlag      string
+	createSupplierFlag string
+	renameSupplierFlag string
 	exportSecretsFlag  bool
 )
 
@@ -68,6 +70,14 @@ var contextCreateCmd = &cobra.Command{
 	RunE:  runContextCreate,
 }
 
+var contextRenameCmd = &cobra.Command{
+	Use:     "rename <old-name> <new-name>",
+	Aliases: []string{"mv"},
+	Short:   "Rename an existing connection context",
+	Args:    cobra.ExactArgs(2),
+	RunE:    runContextRename,
+}
+
 var contextDeleteCmd = &cobra.Command{
 	Use:     "delete <name>",
 	Aliases: []string{"rm"},
@@ -95,6 +105,7 @@ func init() {
 	contextCmd.AddCommand(contextUseCmd)
 	contextCmd.AddCommand(contextCurrentCmd)
 	contextCmd.AddCommand(contextCreateCmd)
+	contextCmd.AddCommand(contextRenameCmd)
 	contextCmd.AddCommand(contextDeleteCmd)
 	contextCmd.AddCommand(contextExportCmd)
 	contextCmd.AddCommand(contextImportCmd)
@@ -107,6 +118,9 @@ func init() {
 	contextCreateCmd.Flags().BoolVar(&createTLSFlag, "tls", false, "Enable TLS connection")
 	contextCreateCmd.Flags().StringVar(&createURIFlag, "uri", "", "Redis connection URI (e.g. redis:// or rediss://)")
 	contextCreateCmd.Flags().StringVar(&createURIFlag, "url", "", "Redis connection URL (alias for --uri)")
+	contextCreateCmd.Flags().StringVar(&createSupplierFlag, "supplier", "", "Redis supplier/provider (e.g. 'Layerbase', 'Redis Official', 'Local container')")
+
+	contextRenameCmd.Flags().StringVar(&renameSupplierFlag, "supplier", "", "Update supplier for the context")
 
 	contextExportCmd.Flags().BoolVar(&exportSecretsFlag, "include-secrets", false, "Include plain passwords without masking")
 }
@@ -114,6 +128,7 @@ func init() {
 type contextStatusResult struct {
 	Active    bool          `json:"active"`
 	Name      string        `json:"name"`
+	Supplier  string        `json:"supplier"`
 	Host      string        `json:"host"`
 	Port      int           `json:"port"`
 	DB        int           `json:"db"`
@@ -156,13 +171,14 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 		go func(idx int, target config.Context) {
 			defer wg.Done()
 			res := contextStatusResult{
-				Active: target.Name == activeContextName,
-				Name:   target.Name,
-				Host:   target.Host,
-				Port:   target.Port,
-				DB:     target.DB,
-				TLS:    target.TLS,
-				Status: "UNREACHABLE",
+				Active:   target.Name == activeContextName,
+				Name:     target.Name,
+				Supplier: config.DetectSupplier(target.Host, target.Supplier),
+				Host:     target.Host,
+				Port:     target.Port,
+				DB:       target.DB,
+				TLS:      target.TLS,
+				Status:   "UNREACHABLE",
 			}
 
 			cl, err := client.NewClient(&target)
@@ -193,11 +209,11 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal contexts JSON: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 
-	headers := []string{"ACTIVE", "NAME", "ENDPOINT", "DB", "STATUS", "LATENCY"}
+	headers := []string{"ACTIVE", "NAME", "SUPPLIER", "ENDPOINT", "DB", "STATUS", "LATENCY"}
 	rows := make([][]string, len(results))
 	for i, res := range results {
 		activeMark := " "
@@ -218,6 +234,7 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 		rows[i] = []string{
 			activeMark,
 			res.Name,
+			res.Supplier,
 			endpoint,
 			fmt.Sprintf("%d", res.DB),
 			format.StatusBadge(res.Status),
@@ -269,7 +286,7 @@ func runContextCurrent(cmd *cobra.Command, args []string) error {
 
 	if jsonFlag || formatFlag == "json" {
 		data, _ := json.MarshalIndent(map[string]string{"current_context": ctx.Name}, "", "  ")
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 
@@ -342,6 +359,8 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	newCtx.Supplier = config.DetectSupplier(newCtx.Host, createSupplierFlag)
+
 	cfg.SetContext(newCtx)
 	if cfg.CurrentContext == "" {
 		cfg.CurrentContext = name
@@ -352,6 +371,53 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Context %q created.\n", name)
+	return nil
+}
+
+func runContextRename(cmd *cobra.Command, args []string) error {
+	oldName := args[0]
+	newName := args[1]
+
+	cfgPath := config.DefaultConfigPath()
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return fmt.Errorf("failed to load contexts: %w", err)
+	}
+
+	targetCtx, exists := cfg.GetContext(oldName)
+	if !exists {
+		return fmt.Errorf("context %q not found", oldName)
+	}
+
+	if oldName != newName {
+		if _, destExists := cfg.GetContext(newName); destExists && !forceFlag {
+			return fmt.Errorf("context %q already exists (use --force to overwrite)", newName)
+		}
+		if _, destExists := cfg.GetContext(newName); destExists {
+			cfg.DeleteContext(newName)
+		}
+	}
+
+	ctxCopy := *targetCtx
+	ctxCopy.Name = newName
+	if renameSupplierFlag != "" {
+		ctxCopy.Supplier = renameSupplierFlag
+	} else if ctxCopy.Supplier == "" {
+		ctxCopy.Supplier = config.DetectSupplier(ctxCopy.Host, "")
+	}
+
+	wasCurrent := (cfg.CurrentContext == oldName)
+	cfg.DeleteContext(oldName)
+	cfg.SetContext(ctxCopy)
+	if wasCurrent {
+		cfg.CurrentContext = newName
+	}
+
+	if err := config.Save(cfgPath, cfg); err != nil {
+		return fmt.Errorf("failed to save contexts: %w", err)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "Renamed context %q to %q.\n", oldName, newName)
 	return nil
 }
 

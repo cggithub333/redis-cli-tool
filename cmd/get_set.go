@@ -99,7 +99,7 @@ func runGet(cmd *cobra.Command, args []string) error {
 			"raw_bytes":  decoded.RawBytes,
 			"truncated":  decoded.Truncated,
 		}, "", "  ")
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 
@@ -130,7 +130,7 @@ func runSet(cmd *cobra.Command, args []string) error {
 			"key":     key,
 			"status":  "OK",
 		}, "", "  ")
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 

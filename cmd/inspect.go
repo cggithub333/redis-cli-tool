@@ -82,7 +82,7 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal inspection JSON: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 

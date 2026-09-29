@@ -97,7 +97,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), outStr)
+			emitJSON(cmd, outStr)
 			return nil
 		}
 
@@ -105,7 +105,7 @@ func runShow(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal scan result: %w", err)
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), outStr)
+		emitJSON(cmd, outStr)
 		return nil
 	}
 

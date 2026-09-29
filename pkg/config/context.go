@@ -1,5 +1,7 @@
 package config
 
+import "strings"
+
 // Context represents a Redis connection context
 type Context struct {
 	Name     string `yaml:"name"`
@@ -9,6 +11,7 @@ type Context struct {
 	Password string `yaml:"password,omitempty"`
 	DB       int    `yaml:"db,omitempty"`
 	TLS      bool   `yaml:"tls,omitempty"`
+	Supplier string `yaml:"supplier,omitempty"`
 }
 
 // Config represents the complete CLI configuration
@@ -59,5 +62,46 @@ func (cfg *Config) DeleteContext(name string) bool {
 		}
 	}
 	return false
+}
+
+// RenameContext renames an existing context, updating CurrentContext if it matches
+func (cfg *Config) RenameContext(oldName, newName string) bool {
+	if cfg == nil {
+		return false
+	}
+	for i := range cfg.Contexts {
+		if cfg.Contexts[i].Name == oldName {
+			cfg.Contexts[i].Name = newName
+			if cfg.CurrentContext == oldName {
+				cfg.CurrentContext = newName
+			}
+			return true
+		}
+	}
+	return false
+}
+
+// DetectSupplier infers or normalizes the Redis supplier / provider.
+func DetectSupplier(host, explicit string) string {
+	if explicit != "" {
+		return explicit
+	}
+	lowerHost := strings.ToLower(host)
+	switch {
+	case strings.Contains(lowerHost, "layerbase"):
+		return "Layerbase"
+	case strings.Contains(lowerHost, "upstash"):
+		return "Upstash"
+	case strings.Contains(lowerHost, "redislabs.com") || strings.Contains(lowerHost, "redis.com") || strings.Contains(lowerHost, "redis.io"):
+		return "Redis Official"
+	case strings.Contains(lowerHost, "elasticache") || strings.Contains(lowerHost, "amazonaws.com"):
+		return "AWS ElastiCache"
+	case strings.Contains(lowerHost, "aiven"):
+		return "Aiven"
+	case lowerHost == "127.0.0.1" || lowerHost == "localhost" || lowerHost == "::1":
+		return "Local container"
+	default:
+		return "Custom"
+	}
 }
 

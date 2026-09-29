@@ -150,7 +150,7 @@ func runDel(cmd *cobra.Command, args []string) error {
 				"matched_keys":           totalMatched,
 				"estimated_memory_bytes": estimatedMemory,
 			}, "", "  ")
-			fmt.Fprintln(cmd.OutOrStdout(), string(data))
+			emitJSON(cmd, string(data))
 			return nil
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "[DRY-RUN] Matched %d key(s) (~%s memory). 0 keys deleted.\n", totalMatched, format.FormatBytes(estimatedMemory))
@@ -163,7 +163,7 @@ func runDel(cmd *cobra.Command, args []string) error {
 			"unlinked_keys": totalUnlinked,
 			"matched_keys":  totalMatched,
 		}, "", "  ")
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 

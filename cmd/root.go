@@ -74,6 +74,8 @@ func ResetFlags() {
 	createPasswordFlag = ""
 	createTLSFlag = false
 	createURIFlag = ""
+	createSupplierFlag = ""
+	renameSupplierFlag = ""
 	exportSecretsFlag = false
 
 	resetCommandFlags(rootCmd)

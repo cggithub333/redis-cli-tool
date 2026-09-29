@@ -219,3 +219,88 @@ func TestContextCreateURI(t *testing.T) {
 	}
 }
 
+func TestContextRenameAndSupplier(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// 1. Create context with auto-detected Layerbase supplier
+	ResetFlags()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"context", "create", "layerbase", "--host", "127.0.0.1", "--port", "6379", "--supplier", "Layerbase"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to create context: %v", err)
+	}
+
+	// 2. Check context ls table has SUPPLIER column
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "ls"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to list contexts: %v", err)
+	}
+	lsOut := buf.String()
+	if !strings.Contains(lsOut, "SUPPLIER") || !strings.Contains(lsOut, "Layerbase") {
+		t.Fatalf("expected SUPPLIER column and Layerbase row, got: %s", lsOut)
+	}
+
+	// 3. Rename context from layerbase to capstone-redis-001
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "rename", "layerbase", "capstone-redis-001"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to rename context: %v", err)
+	}
+	if !strings.Contains(buf.String(), `Renamed context "layerbase" to "capstone-redis-001".`) {
+		t.Fatalf("expected rename message, got: %s", buf.String())
+	}
+
+	// 4. Verify current context updated
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "current"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to get current context: %v", err)
+	}
+	if strings.TrimSpace(buf.String()) != "capstone-redis-001" {
+		t.Fatalf("expected current context capstone-redis-001, got %q", buf.String())
+	}
+
+	// 5. Verify old context no longer exists
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "use", "layerbase"})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatalf("expected error switching to deleted old context name, got nil")
+	}
+
+	// 6. Rename with supplier update
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "rename", "capstone-redis-001", "capstone-official", "--supplier", "Redis Official"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to rename with supplier update: %v", err)
+	}
+
+	// Check ls output shows Redis Official
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "ls"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to list contexts: %v", err)
+	}
+	if !strings.Contains(buf.String(), "Redis Official") {
+		t.Fatalf("expected updated supplier Redis Official, got: %s", buf.String())
+	}
+
+	// 7. Rename non-existent error
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "rename", "does-not-exist", "foo"})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatalf("expected error renaming non-existent context, got nil")
+	}
+}
+
+

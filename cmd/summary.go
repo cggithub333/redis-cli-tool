@@ -104,7 +104,7 @@ func runSummary(cmd *cobra.Command, args []string) error {
 		} else {
 			data, _ = json.MarshalIndent(summary, "", "  ")
 		}
-		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		emitJSON(cmd, string(data))
 		return nil
 	}
 
