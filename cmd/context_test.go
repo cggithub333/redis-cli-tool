@@ -159,3 +159,63 @@ contexts:
 		t.Fatalf("expected imported-ctx to be current, got %q", buf.String())
 	}
 }
+
+func TestContextCreateURI(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+
+	// 1. Cloud TLS URI
+	ResetFlags()
+	buf := new(bytes.Buffer)
+	rootCmd.SetOut(buf)
+	rootCmd.SetErr(buf)
+	rootCmd.SetArgs([]string{"context", "create", "cloud-upstash", "--uri", "rediss://default:upstashpass@us1-test.upstash.io:6379/1"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to create context with cloud TLS URI: %v", err)
+	}
+
+	// Verify created context
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "export", "--include-secrets"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to export contexts: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "name: cloud-upstash") ||
+		!strings.Contains(out, "host: us1-test.upstash.io") ||
+		!strings.Contains(out, "port: 6379") ||
+		!strings.Contains(out, "username: default") ||
+		!strings.Contains(out, "password: upstashpass") ||
+		!strings.Contains(out, "tls: true") ||
+		!strings.Contains(out, "db: 1") {
+		t.Fatalf("cloud context attributes not parsed properly: %s", out)
+	}
+
+	// 2. Override flag with URI
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "create", "cloud-override", "--url", "redis://:localpass@127.0.0.1:6379/0", "--port", "6385"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to create context with override: %v", err)
+	}
+
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "export", "--include-secrets"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to export contexts: %v", err)
+	}
+	if !strings.Contains(buf.String(), "port: 6385") {
+		t.Fatalf("expected port flag to override URI port, got: %s", buf.String())
+	}
+
+	// 3. Invalid URI error
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "create", "bad-uri", "--uri", "invalid://bad-scheme"})
+	if err := rootCmd.Execute(); err == nil {
+		t.Fatalf("expected error on invalid URI scheme, got nil")
+	}
+}
+

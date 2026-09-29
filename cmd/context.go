@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/mattn/go-isatty"
+	"github.com/redis/go-redis/v9"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
@@ -25,6 +28,7 @@ var (
 	createUsernameFlag string
 	createPasswordFlag string
 	createTLSFlag      bool
+	createURIFlag      string
 	exportSecretsFlag  bool
 )
 
@@ -101,6 +105,8 @@ func init() {
 	contextCreateCmd.Flags().StringVar(&createUsernameFlag, "username", "", "Redis username (ACL)")
 	contextCreateCmd.Flags().StringVar(&createPasswordFlag, "password", "", "Redis password")
 	contextCreateCmd.Flags().BoolVar(&createTLSFlag, "tls", false, "Enable TLS connection")
+	contextCreateCmd.Flags().StringVar(&createURIFlag, "uri", "", "Redis connection URI (e.g. redis:// or rediss://)")
+	contextCreateCmd.Flags().StringVar(&createURIFlag, "url", "", "Redis connection URL (alias for --uri)")
 
 	contextExportCmd.Flags().BoolVar(&exportSecretsFlag, "include-secrets", false, "Include plain passwords without masking")
 }
@@ -287,6 +293,49 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 		Username: createUsernameFlag,
 		Password: createPasswordFlag,
 		TLS:      createTLSFlag,
+	}
+
+	if createURIFlag != "" {
+		opts, err := redis.ParseURL(createURIFlag)
+		if err != nil {
+			return fmt.Errorf("invalid Redis URI: %w", err)
+		}
+
+		host, portStr, err := net.SplitHostPort(opts.Addr)
+		if err != nil {
+			host = opts.Addr
+			portStr = "6379"
+		}
+		port, _ := strconv.Atoi(portStr)
+		if port == 0 {
+			port = 6379
+		}
+
+		newCtx.Host = host
+		newCtx.Port = port
+		newCtx.Username = opts.Username
+		newCtx.Password = opts.Password
+		newCtx.DB = opts.DB
+		newCtx.TLS = opts.TLSConfig != nil
+
+		if cmd.Flags().Changed("host") {
+			newCtx.Host = createHostFlag
+		}
+		if cmd.Flags().Changed("port") {
+			newCtx.Port = createPortFlag
+		}
+		if cmd.Flags().Changed("db") {
+			newCtx.DB = createDBFlag
+		}
+		if cmd.Flags().Changed("username") {
+			newCtx.Username = createUsernameFlag
+		}
+		if cmd.Flags().Changed("password") {
+			newCtx.Password = createPasswordFlag
+		}
+		if cmd.Flags().Changed("tls") {
+			newCtx.TLS = createTLSFlag
+		}
 	}
 
 	cfg.SetContext(newCtx)

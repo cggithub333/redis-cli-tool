@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"redis-cli-tool/pkg/safety"
 )
@@ -72,7 +73,22 @@ func ResetFlags() {
 	createUsernameFlag = ""
 	createPasswordFlag = ""
 	createTLSFlag = false
+	createURIFlag = ""
 	exportSecretsFlag = false
+
+	resetCommandFlags(rootCmd)
+}
+
+func resetCommandFlags(c *cobra.Command) {
+	c.Flags().VisitAll(func(f *pflag.Flag) {
+		f.Changed = false
+	})
+	c.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		f.Changed = false
+	})
+	for _, sub := range c.Commands() {
+		resetCommandFlags(sub)
+	}
 }
 
 func init() {
