@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -64,9 +65,9 @@ var contextCurrentCmd = &cobra.Command{
 }
 
 var contextCreateCmd = &cobra.Command{
-	Use:   "create <name>",
+	Use:   "create [name]",
 	Short: "Create a new context profile",
-	Args:  cobra.ExactArgs(1),
+	Args:  cobra.MaximumNArgs(1),
 	RunE:  runContextCreate,
 }
 
@@ -295,15 +296,15 @@ func runContextCurrent(cmd *cobra.Command, args []string) error {
 }
 
 func runContextCreate(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	var name string
+	if len(args) > 0 {
+		name = strings.TrimSpace(args[0])
+	}
+
 	cfgPath := config.DefaultConfigPath()
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		return fmt.Errorf("failed to load contexts: %w", err)
-	}
-
-	if _, exists := cfg.GetContext(name); exists && !forceFlag {
-		return fmt.Errorf("context %q already exists (use --force to overwrite)", name)
 	}
 
 	newCtx := config.Context{
@@ -317,7 +318,14 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	if createURIFlag != "" {
-		opts, err := redis.ParseURL(createURIFlag)
+		rawURI := strings.TrimSpace(createURIFlag)
+		if strings.HasPrefix(rawURI, "http://") {
+			rawURI = "redis://" + strings.TrimPrefix(rawURI, "http://")
+		} else if strings.HasPrefix(rawURI, "https://") {
+			rawURI = "rediss://" + strings.TrimPrefix(rawURI, "https://")
+		}
+
+		opts, err := redis.ParseURL(rawURI)
 		if err != nil {
 			return fmt.Errorf("invalid Redis URI: %w", err)
 		}
@@ -357,6 +365,23 @@ func runContextCreate(cmd *cobra.Command, args []string) error {
 		if cmd.Flags().Changed("tls") {
 			newCtx.TLS = createTLSFlag
 		}
+	}
+
+	if name == "" {
+		// Auto-derive context name if omitted
+		if newCtx.Host == "127.0.0.1" || newCtx.Host == "localhost" || newCtx.Host == "::1" {
+			name = fmt.Sprintf("local-%d", newCtx.Port)
+		} else {
+			name = strings.Split(newCtx.Host, ".")[0]
+		}
+		if name == "" {
+			return fmt.Errorf("context name is required. Usage: redis context create <name> [flags]")
+		}
+	}
+	newCtx.Name = name
+
+	if _, exists := cfg.GetContext(name); exists && !forceFlag {
+		return fmt.Errorf("context %q already exists (use --force to overwrite)", name)
 	}
 
 	newCtx.Supplier = config.DetectSupplier(newCtx.Host, createSupplierFlag)

@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
@@ -14,16 +13,19 @@ import (
 	"redis-cli-tool/pkg/tui"
 )
 
+var explorePatternFlag string
+
 var exploreCmd = &cobra.Command{
-	Use:     "explore",
+	Use:     "explore [pattern]",
 	Aliases: []string{"ui"},
-	Short:   "Launch full-screen interactive TUI key explorer",
-	Long:    `Launch an interactive full-screen terminal browser with live search filtering, split-pane inspection, and keyboard navigation. Requires an interactive TTY.`,
+	Short:   "Launch full-screen interactive FZF key explorer with live preview",
+	Long:    `Launch an interactive full-screen fuzzy finder with live search, split-pane inspection preview, and keyboard navigation powered by an integrated FZF engine. Requires an interactive TTY.`,
 	RunE:    runExplore,
 }
 
 func init() {
 	rootCmd.AddCommand(exploreCmd)
+	exploreCmd.Flags().StringVarP(&explorePatternFlag, "pattern", "p", "*", "Pattern to match keys (glob syntax)")
 }
 
 func runExplore(cmd *cobra.Command, args []string) error {
@@ -41,20 +43,23 @@ func runExplore(cmd *cobra.Command, args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutFlag)*time.Second)
 	defer cancel()
 
-	scanRes, err := cl.ScanKeys(ctx, "*", 0, 200)
+	pattern := explorePatternFlag
+	if len(args) > 0 {
+		pattern = args[0]
+	}
+
+	selectedKey, found, err := tui.RunFZFExplorer(ctx, cl, &targetCtx, pattern)
 	if err != nil {
-		return fmt.Errorf("failed to scan keys for TUI: %w", err)
+		return err
 	}
 
-	for i := range scanRes.Keys {
-		scanRes.Keys[i].TTLStr = formatTTL(scanRes.Keys[i].TTL)
+	if !found {
+		fmt.Fprintf(cmd.OutOrStdout(), "No keys matching pattern %q found in context %q (DB %d).\n", pattern, targetCtx.Name, targetCtx.DB)
+		return nil
 	}
 
-	m := tui.NewModel(cl, targetCtx.Name, scanRes.Keys)
-	p := tea.NewProgram(m, tea.WithAltScreen())
-
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("TUI execution failed: %w", err)
+	if selectedKey != "" {
+		return runInspect(cmd, []string{selectedKey})
 	}
 
 	return nil

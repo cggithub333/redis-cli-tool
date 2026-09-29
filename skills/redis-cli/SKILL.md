@@ -158,6 +158,23 @@ redis get cache:auth:token
 redis get user:profile --full
 ```
 
+### 5. Interactive FZF Key Explorer (`redis explore` / `ui`)
+Launches a full-screen fuzzy finder powered by an integrated FZF engine with warm Redis branding, non-blocking SCAN streaming, and a live inspection preview pane:
+```bash
+# Explore all keys in active context:
+redis explore
+
+# Explore with specific pattern filter:
+redis explore "user:*"
+redis explore -p "session:*"
+```
+- **Navigation**: Up/Down arrows or `Ctrl-J`/`Ctrl-K` to browse keys.
+- **Search**: Fuzzy search query to filter keys in real time.
+- **Preview Pane**: Split-pane live inspection showing Type, TTL, Memory, Encoding, and colorized JSON payload.
+- **Selection**: Press `Enter` to select and print the key's full inspection card to terminal scrollback.
+- **Exit**: Press `Esc` or `Ctrl-C` to exit cleanly.
+- **Guardrail**: Requires interactive TTY (exits with code 5 in non-interactive agent pipes).
+
 ---
 
 ## 🗑️ Destructive Operations & Guardrails

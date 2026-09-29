@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"redis-cli-tool/pkg/format"
 	"redis-cli-tool/pkg/safety"
 )
 
@@ -62,6 +63,8 @@ func ResetFlags() {
 	showLimitFlag = 50
 	showPageFlag = 1
 
+	explorePatternFlag = "*"
+
 	dryRunFlag = false
 	inspectFullFlag = false
 	getFullFlag = false
@@ -101,4 +104,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&fieldsFlag, "fields", "", "Comma-separated list of fields to display")
 	rootCmd.PersistentFlags().BoolVar(&forceFlag, "force", false, "Force operation without prompt")
 	rootCmd.PersistentFlags().IntVar(&timeoutFlag, "timeout", 15, "Command timeout in seconds")
+
+	format.SetupHelp(rootCmd)
 }

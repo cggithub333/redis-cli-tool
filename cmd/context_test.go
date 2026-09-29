@@ -210,7 +210,25 @@ func TestContextCreateURI(t *testing.T) {
 		t.Fatalf("expected port flag to override URI port, got: %s", buf.String())
 	}
 
-	// 3. Invalid URI error
+	// 3. Auto-derived name and HTTP URI normalization
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "create", "--uri", "http://localhost:6379"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to create context with http URI and omitted name: %v", err)
+	}
+
+	ResetFlags()
+	buf.Reset()
+	rootCmd.SetArgs([]string{"context", "export"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("failed to export contexts: %v", err)
+	}
+	if !strings.Contains(buf.String(), "name: local-6379") {
+		t.Fatalf("expected auto-derived name 'local-6379', got: %s", buf.String())
+	}
+
+	// 4. Invalid URI error
 	ResetFlags()
 	buf.Reset()
 	rootCmd.SetArgs([]string{"context", "create", "bad-uri", "--uri", "invalid://bad-scheme"})
