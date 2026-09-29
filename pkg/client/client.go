@@ -23,9 +23,12 @@ func NewClient(cfg *config.Context) (*Client, error) {
 	}
 	opts := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
-		Username: cfg.Username,
-		Password: cfg.Password,
-		DB:       cfg.DB,
+		Username:     cfg.Username,
+		Password:     cfg.Password,
+		DB:           cfg.DB,
+		DialTimeout:  15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
 	}
 
 	if cfg.TLS {

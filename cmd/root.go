@@ -55,7 +55,7 @@ func ResetFlags() {
 	compactFlag = false
 	fieldsFlag = ""
 	forceFlag = false
-	timeoutFlag = 10
+	timeoutFlag = 15
 
 	showPatternFlag = "*"
 	showCursorFlag = 0
@@ -100,5 +100,5 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&compactFlag, "compact", false, "Compact output (no color/formatting)")
 	rootCmd.PersistentFlags().StringVar(&fieldsFlag, "fields", "", "Comma-separated list of fields to display")
 	rootCmd.PersistentFlags().BoolVar(&forceFlag, "force", false, "Force operation without prompt")
-	rootCmd.PersistentFlags().IntVar(&timeoutFlag, "timeout", 10, "Command timeout in seconds")
+	rootCmd.PersistentFlags().IntVar(&timeoutFlag, "timeout", 15, "Command timeout in seconds")
 }
