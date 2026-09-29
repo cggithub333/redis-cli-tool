@@ -168,7 +168,11 @@ func runContextLs(cmd *cobra.Command, args []string) error {
 			cl, err := client.NewClient(&target)
 			if err == nil {
 				defer cl.Close()
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+				pingTimeout := 2 * time.Second
+				if timeoutFlag > 0 && time.Duration(timeoutFlag)*time.Second > pingTimeout {
+					pingTimeout = time.Duration(timeoutFlag) * time.Second
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), pingTimeout)
 				defer cancel()
 
 				lat, pingErr := cl.Ping(ctx)
