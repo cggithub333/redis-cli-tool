@@ -124,6 +124,49 @@ func init() {
 	contextRenameCmd.Flags().StringVar(&renameSupplierFlag, "supplier", "", "Update supplier for the context")
 
 	contextExportCmd.Flags().BoolVar(&exportSecretsFlag, "include-secrets", false, "Include plain passwords without masking")
+
+	contextUseCmd.ValidArgsFunction = CompleteContextNames
+	contextDeleteCmd.ValidArgsFunction = CompleteContextNames
+	contextRenameCmd.ValidArgsFunction = func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		if len(args) == 0 {
+			return CompleteContextNames(cmd, args, toComplete)
+		}
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	contextCreateCmd.RegisterFlagCompletionFunc("supplier", CompleteSuppliers)
+	contextRenameCmd.RegisterFlagCompletionFunc("supplier", CompleteSuppliers)
+}
+
+// CompleteContextNames dynamically lists configured context names with supplier and endpoint descriptions.
+func CompleteContextNames(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	cfg, err := config.Load(config.DefaultConfigPath())
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	var results []string
+	for _, c := range cfg.Contexts {
+		desc := c.Supplier
+		if desc == "" {
+			desc = fmt.Sprintf("%s:%d", c.Host, c.Port)
+		} else {
+			desc = fmt.Sprintf("%s (%s:%d)", desc, c.Host, c.Port)
+		}
+		results = append(results, fmt.Sprintf("%s\t%s", c.Name, desc))
+	}
+	return results, cobra.ShellCompDirectiveNoFileComp
+}
+
+// CompleteSuppliers provides suggestions for common Redis hosting providers.
+func CompleteSuppliers(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return []string{
+		"Local container\tLocal Docker or Podman container",
+		"Layerbase\tLayerbase Cloud Redis",
+		"Redis Official\tRedis Cloud / Enterprise",
+		"Upstash\tUpstash Serverless Redis",
+		"AWS ElastiCache\tAWS ElastiCache Redis cluster",
+		"Aiven\tAiven Managed Redis",
+	}, cobra.ShellCompDirectiveNoFileComp
 }
 
 type contextStatusResult struct {

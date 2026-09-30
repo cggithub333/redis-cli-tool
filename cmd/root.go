@@ -105,5 +105,10 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&forceFlag, "force", false, "Force operation without prompt")
 	rootCmd.PersistentFlags().IntVar(&timeoutFlag, "timeout", 15, "Command timeout in seconds")
 
+	rootCmd.RegisterFlagCompletionFunc("context", CompleteContextNames)
+	rootCmd.RegisterFlagCompletionFunc("format", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"table\tTabular formatted view", "json\tMachine-parseable JSON", "yaml\tStructured YAML"}, cobra.ShellCompDirectiveNoFileComp
+	})
+
 	format.SetupHelp(rootCmd)
 }

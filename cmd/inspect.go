@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 
 	"redis-cli-tool/pkg/format"
@@ -86,21 +85,25 @@ func runInspect(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	cardStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
-		Padding(0, 1)
+	typeDisplay := strings.ToUpper(keyType)
+	if decoded.ValueType == format.TypeJSON && strings.ToLower(keyType) == "string" {
+		typeDisplay = "STRING (JSON)"
+	}
 
-	headerText := fmt.Sprintf("KEY: %s\nTYPE: %s   TTL: %s   MEMORY: %s   ENCODING: %s",
-		format.ActiveStyle.Render(key),
-		format.HealthyStyle.Render(strings.ToUpper(keyType)),
-		result.TTLStr,
-		formatBytes(memory),
-		encoding,
-	)
+	headers := []string{"KEY", "TYPE", "TTL", "SIZE", "ENCODING"}
+	rows := [][]string{
+		{
+			format.ActiveStyle.Render(key),
+			format.HealthyStyle.Render(typeDisplay),
+			result.TTLStr,
+			formatBytes(memory),
+			encoding,
+		},
+	}
 
-	fmt.Fprintln(cmd.OutOrStdout(), cardStyle.Render(headerText))
-	fmt.Fprintln(cmd.OutOrStdout(), "\nVALUE PREVIEW:")
+	tableStr := format.RenderTable(headers, rows)
+	fmt.Fprintln(cmd.OutOrStdout(), tableStr)
+	fmt.Fprintln(cmd.OutOrStdout(), "")
 	fmt.Fprintln(cmd.OutOrStdout(), decoded.Formatted)
 
 	return nil

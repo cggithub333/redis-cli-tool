@@ -42,6 +42,36 @@ When invoking `redis` within automated agent workflows or scripts, adhere to the
 
 ---
 
+## ⚡ Shell Autocompletion Setup
+
+The CLI features rich shell completion for Zsh and Bash matching the `$HOME/.oci/bin/completion/INIT-oci-completion.sh` architectural pattern:
+
+### 1. One-Command Automatic Install
+```bash
+redis completion install
+# Output:
+# ✓ Written completion script to: ~/.redis-cli/bin/completion/INIT-redis-completion.sh
+# ✓ Appended completion loader to ~/.zshrc
+```
+Then reload your shell:
+```bash
+source ~/.zshrc
+```
+
+### 2. Standalone Python Setup Script
+Alternatively, run the included Python installer:
+```bash
+python3 scripts/setup_completion.py
+```
+
+### 3. Autocompletion Capabilities
+- **Top-level & Subcommands**: Type `redis <TAB>` or `redis context <TAB>` to see all commands with inline descriptions.
+- **Dynamic Context Names**: Type `redis context use <TAB>` or `redis --context <TAB>` to dynamically autocomplete all configured contexts (`capstone-redis-001`, `capstone-redis-common`, etc.) with supplier metadata.
+- **Provider Flag Suggestion**: Type `redis context create <name> --supplier <TAB>` to see known suppliers (`Layerbase`, `Redis Official`, `Local container`, `Upstash`, `AWS ElastiCache`).
+- **Format Flag Suggestion**: Type `redis --format <TAB>` to autocomplete `table`, `json`, `yaml`.
+
+---
+
 ## 🧭 Multi-Context Management
 
 The CLI supports Docker/Kubernetes-style context switching, allowing seamless hopping between local containers and cloud Redis engines.
@@ -159,7 +189,7 @@ redis get user:profile --full
 ```
 
 ### 5. Interactive FZF Key Explorer (`redis explore` / `ui`)
-Launches a full-screen fuzzy finder powered by an integrated FZF engine with warm Redis branding, non-blocking SCAN streaming, and a live inspection preview pane:
+Launches a full-screen fuzzy finder powered by an integrated FZF engine with warm Redis branding, rich metadata columns, non-blocking SCAN streaming, and a live inspection preview pane:
 ```bash
 # Explore all keys in active context:
 redis explore
@@ -168,11 +198,23 @@ redis explore
 redis explore "user:*"
 redis explore -p "session:*"
 ```
-- **Navigation**: Up/Down arrows or `Ctrl-J`/`Ctrl-K` to browse keys.
-- **Search**: Fuzzy search query to filter keys in real time.
-- **Preview Pane**: Split-pane live inspection showing Type, TTL, Memory, Encoding, and colorized JSON payload.
-- **Selection**: Press `Enter` to select and print the key's full inspection card to terminal scrollback.
-- **Exit**: Press `Esc` or `Ctrl-C` to exit cleanly.
+- **Rich Metadata Columns**:
+  - **Type Badge**: Color-coded badges for all data types (`[STRING]`, `[HASH]`, `[LIST]`, `[SET]`, `[ZSET]`, `[STREAM]`).
+  - **TTL Indicator**: Formatted countdowns (`23h59m`, `29m48s`, `57s`) with dynamic urgency coloring (dim gray for `persist`, amber for `< 1h`, red for `< 1m`).
+  - **Memory Usage**: Human-readable footprint (`704 B`, `4.6 KB`, `1.2 MB`).
+  - **Namespace Highlighting**: Coral prefix for namespaces (`user:profile:`) with bright white key names (`1001`).
+- **Real-Time Fuzzy Filter**:
+  - Search by key name, prefix (`user:`), type (`hash`, `zset`), TTL (`persist`, `29m`), or memory size.
+- **Split-Pane Live Preview**:
+  - Right-side 55% window displaying live payload previews with full syntax highlighting (colorized JSON, sorted hash tables, list indices, ZSET scores, stream entries, hex dumps).
+- **Interactive Keyboard Controls**:
+  - `[Enter]`: Inspect key and output full card to terminal scrollback.
+  - `[Ctrl-U] / [Ctrl-D]`: Scroll preview pane up/down.
+  - `[Ctrl-/]`: Toggle preview pane on/off (expands key list full-width).
+  - `[Alt-Left] / [Alt-Right]`: Directly move the divider Left / Right by 5% at any time (`Alt-Right` expands Menu, `Alt-Left` expands Preview).
+  - `[Alt-R] / [Alt-Q]`: **Leader Key** for Pane Resizing. Enters interactive **Resize Mode** (`󰌠 [RESIZE: 55%]`). Press `[←] / [Alt-Left]` to move divider Left or `[→] / [Alt-Right]` to move divider Right. Press `[Esc]`, `[Alt-Q]`, or `[Alt-R]` to finish.
+  - `[Alt-H] / [Alt-L]`: Vim-style direct resizing (`Alt-H` = divider left, `Alt-L` = divider right).
+  - `[Esc] / [Ctrl-C]`: Clean exit.
 - **Guardrail**: Requires interactive TTY (exits with code 5 in non-interactive agent pipes).
 
 ---

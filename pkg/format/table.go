@@ -11,7 +11,7 @@ import (
 var (
 	HeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("99")).
+			Foreground(lipgloss.Color("#FF5722")).
 			Padding(0, 1)
 
 	RowStyle = lipgloss.NewStyle().
@@ -30,7 +30,7 @@ var (
 
 	ActiveStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("39"))
+			Foreground(lipgloss.Color("#FFA726"))
 
 	WarningStyle = lipgloss.NewStyle().
 			Bold(true).

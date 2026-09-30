@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -241,10 +242,16 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 			}
 		}
 
+		keys := make([]string, 0, len(hashMap))
+		for k := range hashMap {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+
 		headers := []string{"FIELD", "VALUE"}
-		rows := make([][]string, 0, len(hashMap))
-		for k, v := range hashMap {
-			rows = append(rows, []string{k, truncateRunes(v, 80)})
+		rows := make([][]string, 0, len(keys))
+		for _, k := range keys {
+			rows = append(rows, []string{k, truncateRunes(hashMap[k], 80)})
 		}
 
 		formatted := RenderTable(headers, rows)
@@ -304,6 +311,7 @@ func DecodeRedisKey(ctx context.Context, cl *client.Client, key, keyType string,
 		if len(members) > MaxCollectionItems {
 			members = members[:MaxCollectionItems]
 		}
+		sort.Strings(members)
 
 		headers := []string{"MEMBER"}
 		rows := make([][]string, len(members))

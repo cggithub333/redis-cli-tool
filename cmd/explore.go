@@ -23,8 +23,18 @@ var exploreCmd = &cobra.Command{
 	RunE:    runExplore,
 }
 
+var resizeCmd = &cobra.Command{
+	Use:    "__resize [session-id] [action]",
+	Hidden: true,
+	Args:   cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return tui.HandleResize(args[0], args[1])
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(exploreCmd)
+	rootCmd.AddCommand(resizeCmd)
 	exploreCmd.Flags().StringVarP(&explorePatternFlag, "pattern", "p", "*", "Pattern to match keys (glob syntax)")
 }
 

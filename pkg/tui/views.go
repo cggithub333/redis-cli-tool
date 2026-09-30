@@ -16,7 +16,7 @@ var (
 
 	paneHeaderStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("99")).
+			Foreground(lipgloss.Color("#FF5722")).
 			MarginBottom(1)
 
 	selectedItemStyle = lipgloss.NewStyle().

@@ -110,7 +110,7 @@ func runSummary(cmd *cobra.Command, args []string) error {
 
 	cardStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color("#FF5722")).
 		Padding(0, 1)
 
 	content := fmt.Sprintf(
