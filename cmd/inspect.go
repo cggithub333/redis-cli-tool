@@ -104,7 +104,10 @@ func runInspect(cmd *cobra.Command, args []string) error {
 	tableStr := format.RenderTable(headers, rows)
 	fmt.Fprintln(cmd.OutOrStdout(), tableStr)
 	fmt.Fprintln(cmd.OutOrStdout(), "")
-	fmt.Fprintln(cmd.OutOrStdout(), decoded.Formatted)
+
+	width := format.DetectTerminalWidth()
+	content := format.RenderInspectContent(decoded, width, compactFlag)
+	fmt.Fprintln(cmd.OutOrStdout(), content)
 
 	return nil
 }

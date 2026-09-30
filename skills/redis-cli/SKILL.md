@@ -168,9 +168,9 @@ redis show --pattern "api:*" --json --compact --fields=key,type,ttl
 
 ### 3. Key Inspector (`redis inspect`)
 Inspects data type, memory footprint, TTL, encoding, and decoded value:
-- **JSON**: Formatted with syntax highlighting.
+- **Strings & JSON**: Formatted inside a border-free card with dark gray background (`#262626`), language badge (e.g. `json`, `yaml`, `text`), and Chroma syntax highlighting (matching deepmd).
 - **Hashes, Sets, Lists, ZSets, Streams**: Rendered in structured tables with bounded collection limits (max 100 items).
-- **Binary**: Clean hexadecimal dump.
+- **Binary**: Clean hexadecimal dump inside a shaded card with `hex` badge.
 - **Safety Ceiling**: Strings capped at 256KB preview to avoid client OOM (use `--full` to bypass).
 
 ```bash
